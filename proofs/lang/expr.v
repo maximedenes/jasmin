@@ -699,7 +699,7 @@ Notation mk_instr str tin i_in tout i_out semi wsizei safe:=
 Class asmOp (asm_op : Type) := 
   { _eqT         :> eqTypeC asm_op
   ; asm_op_instr : asm_op -> instruction
-  ; set0_instr   : wsize -> instruction
+(*  ; set0_instr   : wsize -> instruction *)
 }.
 
 (* ---------------------------------------------------------------------------- *)
