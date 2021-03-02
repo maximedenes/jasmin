@@ -116,17 +116,70 @@ Proof. by move => /of_var_eP h1 /of_var_eP; apply: inj_of_var. Qed.
 *)
 End Section.
 
-Class asm_extra_op := 
-  { set0_instr : wsize -> expr.instruction }.
+(*
+Class asm_extra_op (extra_op : Type) := 
+  { _asmOp :> expr.asmOp extra_op
+  (* The set of operator that we would like to provide, 
+     for all architecture *)
+  ; Onop      : extra_op
+  ; Omulu     : wsize -> extra_op 
+  ; Oaddcarry : wsize -> extra_op
+  ; Osubcarry : wsize -> extra_op
+  ; Oset0     : wsize -> extra_op 
+  (* Need also to be provided *)
+  (* Move                     *)
+  (* Load                     *)
+  (* tore                     *)
+  }.
+*)
+(*
+(* FIXME ARM *)
+| Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
+| Ox86MOVZX32
+| Oasm      of asm_op  (* x86 instruction *)
+*)
 
-Class asm_extra (reg xreg rflag cond asm_op : Type) := 
+(*
+Class asmOp (asm_op : Type) := 
+  { _eqT         :> eqTypeC asm_op
+  ; asm_op_instr : asm_op -> instruction
+(*  ; set0_instr   : wsize -> instruction *)
+}.
+
+
+set0_instr : wsize -> expr.instruction }.
+*)
+
+Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) := 
   { _asm   :> asm reg xreg rflag cond asm_op
-  ; _extra :> asm_extra_op }.
+  ; _extra :> expr.asmOp extra_op 
+  ; to_asm : extra_op -> option asm_op}.
 
+(*Notation "T <:" := (T : Equality.sort ceqT_eqType)
+  (at level 70) : bool_scope. *)
 
 Section AsmOpI.
 
 Context `{asm_e : asm_extra}.
+
+Inductive extended_op := 
+  | AsmOp of asm_op
+  | ExtOp of extra_op.
+
+Definition extended_op_beq o1 o2 := 
+  match o1, o2 with
+  | AsmOp o1, AsmOp o2 => o1 == o2 ::>
+  | ExtOp o1, ExtOp o2 => o1 == o2 ::>
+  | _, _               => false
+  end.
+
+Lemma extended_op_eq_axiom : Equality.axiom extended_op_beq.
+Proof.
+  by case=> [] o1 [] o2 /=; (constructor || apply: reflect_inj eqP => ?? []).
+Qed.
+
+Definition extended_op_eqMixin := Equality.Mixin extended_op_eq_axiom.
+Definition extended_op_eqType := EqType extended_op extended_op_eqMixin.
 
 Definition expr_implicite_arg (i: implicite_arg) := 
   match i with 
@@ -140,22 +193,25 @@ Definition expr_arg_desc (ad:arg_desc) :=
   | ADExplicit _ n ox => expr.ADExplicit n (omap (to_var (tS:=_)) ox)
   end.
 
-Definition get_instr instr := 
- let id := instr_desc instr in
- {| expr.str      := id.(id_str_jas)
-  ; expr.tin      := id.(id_tin)
-  ; expr.i_in     := map expr_arg_desc id.(id_in)
-  ; expr.i_out    := map expr_arg_desc id.(id_out)
-  ; expr.tout     := id.(id_tout)
-  ; expr.semi     := id.(id_semi)
-  ; expr.tin_narr := id.(id_tin_narr)
-  ; expr.wsizei   := id.(id_wsize)
-  ; expr.i_safe   := id.(id_safe) |}.
+Definition get_instr (o: extended_op) : expr.instruction :=
+ match o with
+ | AsmOp o =>  
+   let id := instr_desc o in
+   {| expr.str      := id.(id_str_jas)
+    ; expr.tin      := id.(id_tin)
+    ; expr.i_in     := map expr_arg_desc id.(id_in)
+    ; expr.i_out    := map expr_arg_desc id.(id_out)
+    ; expr.tout     := id.(id_tout)
+    ; expr.semi     := id.(id_semi)
+    ; expr.tin_narr := id.(id_tin_narr)
+    ; expr.wsizei   := id.(id_wsize)
+    ; expr.i_safe   := id.(id_safe) |}
+ | ExtOp o => expr.asm_op_instr o
+ end.
 
-Global Instance asm_opI : expr.asmOp asm_op := 
-  {| expr._eqT := _
-   ; expr.asm_op_instr := get_instr
-   ; expr.set0_instr := set0_instr |}.
+Global Instance asm_opI : expr.asmOp extended_op := 
+  { expr._eqT := {| ceqP := extended_op_eq_axiom |}
+  ; expr.asm_op_instr := get_instr }.
 
 End AsmOpI.
 
