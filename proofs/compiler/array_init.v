@@ -40,6 +40,10 @@ Local Open Scope seq_scope.
 (* ----------------------------------------------------------------------- *)
 (* Remove array initialisation                                             *)
 
+Section Op.
+
+Context `{asmop:asmOp}.
+
 Section Section.
 
 Context (is_reg_array : var -> bool).
@@ -50,7 +54,7 @@ Definition is_array_init e :=
   | _           => false
   end.
 
-Fixpoint remove_init_i i :=
+Fixpoint remove_init_i (i:instr) :=
   match i with
   | MkI ii ir =>
     match ir with
@@ -124,7 +128,7 @@ Context (is_ptr : var -> bool).
 (* TODO: move *)
 Definition dummy_info := xH.
 
-Definition add_init_aux ii x c := 
+Definition add_init_aux ii x (c:cmd) := 
   match x.(vtype) with
   | sarr n =>
     if ~~ is_ptr x then
@@ -170,4 +174,6 @@ Definition add_init_fd (fd:fundef) :=
 Definition add_init_prog (p:prog) := map_prog add_init_fd p.
 
 End Section.
+
+End Op.
 

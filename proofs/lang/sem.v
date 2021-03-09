@@ -434,11 +434,14 @@ Proof. case: v => // [ sz' w | [] // ] _; exact: wsize_le_U8. Qed.
 
 (* ---------------------------------------------------------------- *)
 
-Definition exec_sopn (o:sopn) (vs:values) : exec values :=
+Section Section.
+
+Context {asm_op} {asmop:asmOp asm_op}.
+
+Definition exec_sopn (o:asm_op) (vs:values) : exec values :=
   let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
-
 
 Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
   List.map type_of_val vs' = sopn_tout o.
@@ -583,7 +586,7 @@ Section SEM_IND.
       Pi_r s1 (Cassgn x tag ty e) s2.
 
   Definition sem_Ind_opn : Prop :=
-    forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
+    forall (s1 s2 : estate) t (o : asm_op) (xs : lvals) (es : pexprs),
       sem_sopn gd o s1 xs es = Ok error s2 ->
       Pi_r s1 (Copn xs t o es) s2.
 
@@ -752,3 +755,5 @@ Proof.
 Qed.
 
 End SEM.
+
+End Section.

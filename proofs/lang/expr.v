@@ -738,10 +738,6 @@ Definition instr_r `{asmop : asmOp} := @instr_r_t asm_op.
 Definition instr   `{asmop : asmOp} := @instr_t asm_op.
 Notation cmd := (seq instr).
 
-Section ASM_OP.
-
-Context `{asmop:asmOp}.
-
 (*
 Definition sopn_beq (o1 o2: sopn_t asm_op) := 
   match o1, o2 with
@@ -845,6 +841,10 @@ Definition get_instr o :=
   | Oasm       o => asm_op_instr o
   end.
 *)
+Section ASM_OP.
+
+Context {asm_op} {asmop:asmOp asm_op}.
+
 Definition get_instr o := asm_op_instr o.
 
 Definition string_of_sopn o : string := str (get_instr o) tt.
@@ -1059,6 +1059,7 @@ Proof. by case: p. Qed.
 Definition Build_prog p_funcs p_globs p_extra : prog := Build__prog p_funcs p_globs p_extra.
 
 End PROG.
+End ASM_OP.
 
 Notation fun_decls  := (seq fun_decl).
 
@@ -1070,10 +1071,13 @@ Instance progUnit : progT [eqType of unit] :=
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := @fundef _ progUnit.
-Definition ufun_decl   := @fun_decl _ progUnit.
-Definition ufun_decls  := seq (@fun_decl _ progUnit).
-Definition uprog       := @prog _ progUnit.
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
+Definition ufundef     := @fundef _ _ _ progUnit.
+Definition ufun_decl   := @fun_decl _ _ _ progUnit.
+Definition ufun_decls  := seq (@fun_decl _ _ _ progUnit).
+Definition uprog       := @prog _ _ _ progUnit.
 
 (* For extraction *)
 Definition _ufundef    := _fundef unit. 
@@ -1081,6 +1085,8 @@ Definition _ufun_decl  := _fun_decl unit.
 Definition _ufun_decls :=  seq (_fun_decl unit).
 Definition _uprog      := _prog unit unit. 
 Definition to_uprog (p:_uprog) : uprog := p.
+
+End Section.
 
 (* ** Programs after stack/memory allocation 
  * -------------------------------------------------------------------- *)
@@ -1171,16 +1177,19 @@ Instance progStack : progT [eqType of stk_fun_extra] :=
   {| extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := @fundef  _ progStack.
-Definition sfun_decl   := @fun_decl _ progStack.
-Definition sfun_decls  := seq (@fun_decl _ progStack).
-Definition sprog       := @prog  _ progStack.
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
+Definition sfundef     := @fundef  _ _ _ progStack.
+Definition sfun_decl   := @fun_decl _ _ _ progStack.
+Definition sfun_decls  := seq (@fun_decl _ _ _ progStack).
+Definition sprog       := @prog _ _ _ progStack.
 
 (* For extraction *)
 
 Definition _sfundef    := _fundef stk_fun_extra.
 Definition _sfun_decl  := _fun_decl stk_fun_extra. 
-Definition _sfun_decls := seq (_fun_decl  stk_fun_extra).
+Definition _sfun_decls := seq (_fun_decl stk_fun_extra).
 Definition _sprog      := _prog stk_fun_extra sprog_extra.
 Definition to_sprog (p:_sprog) : sprog := p.
 
@@ -1204,6 +1213,7 @@ Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
   f_res    := fd.(f_res);
   f_extra  := f_extra;
 |}.
+End Section.
 
 (* ----------------------------------------------------------------------------- *)
 Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
@@ -1243,7 +1253,6 @@ elim: s1 s2 l=> // [[fn fd] p IH] [|[fn' fd'] p'] // [|lh la] //.
     by case: ifP=> // /eqP.
 Qed.
 
-
 (* ** Compute written variables
  * -------------------------------------------------------------------- *)
 
@@ -1263,28 +1272,6 @@ Definition vrvs := (vrvs_rec Sv.empty).
 
 Definition lv_write_mem (r:lval) : bool :=
   if r is Lmem _ _ _ then true else false.
-
-Fixpoint write_i_rec s (i:instr_r) :=
-  match i with
-  | Cassgn x _ _ _    => vrv_rec s x
-  | Copn xs _ _ _   => vrvs_rec s xs
-  | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
-  | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
-  | Cwhile _ c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
-  | Ccall _ x _ _   => vrvs_rec s x
-  end
-with write_I_rec s i :=
-  match i with
-  | MkI _ i => write_i_rec s i
-  end.
-
-Definition write_i i := write_i_rec Sv.empty i.
-
-Definition write_I i := write_I_rec Sv.empty i.
-
-Definition write_c_rec s c := foldl write_I_rec s c.
-
-Definition write_c c := write_c_rec Sv.empty c.
 
 Instance vrv_rec_m : Proper (Sv.Equal ==> eq ==> Sv.Equal) vrv_rec.
 Proof.
@@ -1318,9 +1305,34 @@ Qed.
 Lemma vrvs_cons r rs : Sv.Equal (vrvs (r::rs)) (Sv.union (vrv r) (vrvs rs)).
 Proof. by rewrite /vrvs /= vrvs_recE. Qed.
 
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
+Fixpoint write_i_rec s (i:instr_r) :=
+  match i with
+  | Cassgn x _ _ _    => vrv_rec s x
+  | Copn xs _ _ _   => vrvs_rec s xs
+  | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
+  | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
+  | Cwhile _ c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
+  | Ccall _ x _ _   => vrvs_rec s x
+  end
+with write_I_rec s i :=
+  match i with
+  | MkI _ i => write_i_rec s i
+  end.
+
+Definition write_i i := write_i_rec Sv.empty i.
+
+Definition write_I i := write_I_rec Sv.empty i.
+
+Definition write_c_rec s c := foldl write_I_rec s c.
+
+Definition write_c c := write_c_rec Sv.empty c.
+
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
-  apply (@cmd_rect
+  apply (@cmd_rect asm_op asmop
            (fun i => forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
            (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
            (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
@@ -1376,10 +1388,11 @@ Lemma write_i_call ii xs f es :
   write_i (Ccall ii xs f es) = vrvs xs.
 Proof. done. Qed.
 
+End Section.
 (* -------------------------------------------------------------------- *)
-Hint Rewrite write_c_nil write_c_cons : write_c.
-Hint Rewrite write_i_assgn write_i_opn write_i_if : write_i.
-Hint Rewrite write_i_while write_i_for write_i_call : write_i.
+Hint Rewrite @write_c_nil @write_c_cons : write_c.
+Hint Rewrite @write_i_assgn @write_i_opn @write_i_if : write_i.
+Hint Rewrite @write_i_while @write_i_for @write_i_call : write_i.
 Hint Rewrite vrv_none vrv_var : vrv.
 
 Ltac writeN := autorewrite with write_c write_i vrv.
@@ -1422,36 +1435,6 @@ Definition read_rv_rec  (s:Sv.t) (r:lval) :=
 Definition read_rv := read_rv_rec Sv.empty.
 Definition read_rvs_rec := foldl read_rv_rec.
 Definition read_rvs := read_rvs_rec Sv.empty.
-
-Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
-  match i with
-  | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
-  | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
-  | Cif b c1 c2 =>
-    let s := foldl read_I_rec s c1 in
-    let s := foldl read_I_rec s c2 in
-    read_e_rec s b
-  | Cfor x (dir, e1, e2) c =>
-    let s := foldl read_I_rec s c in
-    read_e_rec (read_e_rec s e2) e1
-  | Cwhile a c e c' =>
-    let s := foldl read_I_rec s c in
-    let s := foldl read_I_rec s c' in
-    read_e_rec s e
-  | Ccall _ xs _ es => read_es_rec (read_rvs_rec s xs) es
-  end
-with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
-  match i with
-  | MkI _ i => read_i_rec s i
-  end.
-
-Definition read_c_rec := foldl read_I_rec.
-
-Definition read_i := read_i_rec Sv.empty.
-
-Definition read_I := read_I_rec Sv.empty.
-
-Definition read_c := read_c_rec Sv.empty.
 
 Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
 Proof.
@@ -1502,9 +1485,42 @@ Proof.
   rewrite {1}/read_rvs /= read_rvsE read_rvE;SvD.fsetdec.
 Qed.
 
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
+Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
+  match i with
+  | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
+  | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
+  | Cif b c1 c2 =>
+    let s := foldl read_I_rec s c1 in
+    let s := foldl read_I_rec s c2 in
+    read_e_rec s b
+  | Cfor x (dir, e1, e2) c =>
+    let s := foldl read_I_rec s c in
+    read_e_rec (read_e_rec s e2) e1
+  | Cwhile a c e c' =>
+    let s := foldl read_I_rec s c in
+    let s := foldl read_I_rec s c' in
+    read_e_rec s e
+  | Ccall _ xs _ es => read_es_rec (read_rvs_rec s xs) es
+  end
+with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
+  match i with
+  | MkI _ i => read_i_rec s i
+  end.
+
+Definition read_c_rec := foldl read_I_rec.
+
+Definition read_i := read_i_rec Sv.empty.
+
+Definition read_I := read_I_rec Sv.empty.
+
+Definition read_c := read_c_rec Sv.empty.
+
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
-  apply (@cmd_rect
+  apply (@cmd_rect _ _
            (fun i => forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)))
            (fun i => forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)))
            (fun c => forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c))))
@@ -1562,6 +1578,8 @@ Proof. rewrite /read_i /= read_esE read_rvsE;SvD.fsetdec. Qed.
 
 Lemma read_Ii ii i: read_I (MkI ii i) = read_i i.
 Proof. by done. Qed.
+
+End Section.
 
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)
@@ -1698,4 +1716,3 @@ Lemma eq_expr_app1 o1 o2 e1 e2 :
   -> [/\ o1 = o2 & eq_expr e1 e2].
 Proof. by move=> /= /andP[/eqP-> ->]. Qed.
 
-End ASM_OP.
