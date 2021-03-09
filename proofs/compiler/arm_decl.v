@@ -22,7 +22,7 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
- 
+
 
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
@@ -38,7 +38,8 @@ oseq
 Utf8
 Relation_Operators
 sem_type
-arch_decl.
+arch_decl
+HexString.
 
 (* Import Memory. *)
 
@@ -48,98 +49,84 @@ Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
 Variant register : Type :=
-  | RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
-  | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
+  | XZR | SP | PC | X of 'I_31.
 
 (* -------------------------------------------------------------------- *)
-Variant xmm_register : Type :=
-  | XMM0 | XMM1 | XMM2 | XMM3
-  | XMM4 | XMM5 | XMM6 | XMM7
-  | XMM8 | XMM9 | XMM10 | XMM11
-  | XMM12 | XMM13 | XMM14 | XMM15
+Variant simd_register : Type :=
+  | V of 'I_32.
+
+(* -------------------------------------------------------------------- *)
+Variant rflag : Type := FN | FZ | FC | FV .
+
+
+(* -------------------------------------------------------------------- *)
+(*TODO: page 75 document abregé ARM*)
+Variant condt : Type :=
+| EQ (*Equal to*)
+| NE (*Not equal to*)
+| CS (*Greater than, equal to, or unordered*)
+| HS (*Identical to CS*)
+| CC (*Less than*)
+| LO (*Identical to CC*)
+| MI (*Less than*)
+| PL (*Greater than, equal to, or unordered*)
+| VS (*Unordered*)
+| VC (*Not unordered*)
+| HI (*Greater than unordered*)
+| LS (*Less than or equal to*)
+| GE (*Greater than or equal to*)
+| LT (*Less than or unordered*)
+| GT (*Greater than*)
+| LE (*Less than, equal to or unordered*)
+| AL (*Default, always executed*)
+| NV (*Always executed*)
 .
 
 (* -------------------------------------------------------------------- *)
-Variant rflag : Type := CF | PF | ZF | SF | OF | DF.
 
-(* -------------------------------------------------------------------- *)
-(* Variant scale : Type := Scale1 | Scale2 | Scale4 | Scale8. 
 
-(* -------------------------------------------------------------------- *)
-Coercion word_of_scale (s : scale) : pointer :=
-  wrepr Uptr match s with
-  | Scale1 => 1
-  | Scale2 => 2
-  | Scale4 => 4
-  | Scale8 => 8
+Definition register_beq (r1 r2 : register) :=
+  match r1, r2 with
+  | XZR, XZR | SP, SP | PC, PC => true
+  | X i, X j => i == j
+  | _, _ => false
   end.
-*)
-
-(* -------------------------------------------------------------------- *)
-Variant condt : Type :=
-| O_ct                  (* overflow *)
-| NO_ct                 (* not overflow *)
-| B_ct                  (* below, not above or equal *)
-| NB_ct                 (* not below, above or equal *)
-| E_ct                  (* equal, zero *)
-| NE_ct                 (* not equal, not zero *)
-| BE_ct                 (* below or equal, not above *)
-| NBE_ct                (* not below or equal, above *)
-| S_ct                  (* sign *)
-| NS_ct                 (* not sign *)
-| P_ct                  (* parity, parity even *)
-| NP_ct                 (* not parity, parity odd *)
-| L_ct                  (* less than, not greater than or equal to *)
-| NL_ct                 (* not less than, greater than or equal to *)
-| LE_ct                 (* less than or equal to, not greater than *)
-| NLE_ct                (* not less than or equal to, greater than *).
 
 (*
-Definition string_of_condt (c: condt) : string :=
-  match c with
-  | O_ct => "O"
-  | NO_ct => "NO"
-  | B_ct => "B"
-  | NB_ct => "NB"
-  | E_ct => "E"
-  | NE_ct => "NE"
-  | BE_ct => "BE"
-  | NBE_ct => "NBE"
-  | S_ct => "S"
-  | NS_ct => "NS"
-  | P_ct => "P"
-  | NP_ct => "NP"
-  | L_ct => "L"
-  | NL_ct => "NL"
-  | LE_ct => "LE"
-  | NLE_ct => "NLE"
-  end.
+Lemma register_eq_dec (r1 r2 : register) :
+  {r1 = r2} + {r1 <> r2}.
+Proof.
+  move: r1 r2 => [|||i] [|||j].
+  1,6,11: by left.
+  1-12: by right.
+  case Heq: (i == j).
+  + left. auto.
+Qed.
 *)
-
-(* -------------------------------------------------------------------- *)
-
-Scheme Equality for register.
 
 Lemma reg_eq_axiom : Equality.axiom register_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_register_dec_bl.
-  by apply: internal_register_dec_lb.
-Qed.
+  move=> [|||[mi i]] [|||[mj j]] /=; apply:(iffP idP) => //.
+  + by move/eqP => ->.
+  move => [eqm]; apply/eqP.
+Admitted.
 
 Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
 Canonical reg_eqType := EqType register reg_eqMixin.
 
 (* -------------------------------------------------------------------- *)
 
-Scheme Equality for xmm_register.
+Definition simd_register_beq (r1 r2 : simd_register) :=
+  match r1, r2 with
+  | V i, V j => i == j
+  end.
 
-Lemma xreg_eq_axiom : Equality.axiom xmm_register_beq.
+Lemma xreg_eq_axiom : Equality.axiom simd_register_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_xmm_register_dec_bl.
-  by apply: internal_xmm_register_dec_lb.
-Qed.
+   move=> [[mi i]] [[mj j]] /=; apply:(iffP idP).
+  + by move/eqP => ->.
+  move => [eqm]; apply/eqP.
+Admitted.
 
 Definition xreg_eqMixin := Equality.Mixin xreg_eq_axiom.
 Canonical xreg_eqType := EqType _ xreg_eqMixin.
@@ -184,12 +171,23 @@ Definition condt_eqMixin := Equality.Mixin condt_eq_axiom.
 Canonical condt_eqType := EqType condt condt_eqMixin.
 
 (* -------------------------------------------------------------------- *)
-Definition registers :=
-  [:: RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI ;
-      R8 ; R9 ; R10; R11; R12; R13; R14; R15 ].
 
+Definition registers :=
+  (*Eval compute in*) [:: XZR; SP; PC] ++ [seq X i | i in 'I_31].
+
+(*Maybe do something general about 'I_n.*)
 Lemma registers_fin_axiom : Finite.axiom registers.
-Proof. by case. Qed.
+Proof.
+  case => [|||i] /=.
+  1-3: by rewrite count_map; elim: (enum 'I_31).
+  rewrite count_uniq_mem; last first.
+  + rewrite map_inj_uniq; last by move => ? ? [].
+    by apply enum_uniq.
+  rewrite mem_map; last by move => ? ? [].
+  rewrite -(@mem_map _ _ val val_inj) val_enum_ord.
+  move: i; apply ordinal_ind => i lti.
+  by rewrite mem_iota /= !add0n lti.
+Qed.
 
 Definition reg_choiceMixin :=
   PcanChoiceMixin (FinIsCount.pickleK registers_fin_axiom).
@@ -207,29 +205,38 @@ Canonical reg_finType :=
   Eval hnf in FinType register reg_finMixin.
 
 (* -------------------------------------------------------------------- *)
-Definition xmm_registers :=
-  [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15 ].
+Definition simd_registers :=
+  [seq V i | i in 'I_32].
 
-Lemma xmm_registers_fin_axiom : Finite.axiom xmm_registers.
-Proof. by case. Qed.
+Lemma simd_registers_fin_axiom : Finite.axiom simd_registers.
+Proof.
+  case => [i] /=.
+  rewrite count_uniq_mem; last first.
+  + rewrite map_inj_uniq; last by move => ? ? [].
+    by apply enum_uniq.
+  rewrite mem_map; last by move => ? ? [].
+  rewrite -(@mem_map _ _ val val_inj) val_enum_ord.
+  move: i; apply ordinal_ind => i lti.
+  by rewrite mem_iota /= !add0n lti.
+Qed.
 
 Definition xreg_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
+  PcanChoiceMixin (FinIsCount.pickleK simd_registers_fin_axiom).
 Canonical xreg_choiceType :=
-  Eval hnf in ChoiceType xmm_register xreg_choiceMixin.
+  Eval hnf in ChoiceType simd_register xreg_choiceMixin.
 
 Definition xreg_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
+  PcanCountMixin (FinIsCount.pickleK simd_registers_fin_axiom).
 Canonical xreg_countType :=
-  Eval hnf in CountType xmm_register xreg_countMixin.
+  Eval hnf in CountType simd_register xreg_countMixin.
 
 Definition xreg_finMixin :=
-  FinMixin xmm_registers_fin_axiom.
+  FinMixin simd_registers_fin_axiom.
 Canonical xreg_finType :=
-  Eval hnf in FinType xmm_register xreg_finMixin.
+  Eval hnf in FinType simd_register xreg_finMixin.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
+Definition rflags := [:: FN; FZ; FC; FV].
 
 Lemma rflags_fin_axiom : Finite.axiom rflags.
 Proof. by case. Qed.
@@ -250,109 +257,113 @@ Canonical rflag_finType :=
   Eval hnf in FinType rflag rflag_finMixin.
 
 (* -------------------------------------------------------------------- *)
-
-Definition x86_string_of_register r :=
+Definition arm_string_of_register r :=
   match r with
-  | RAX => "RAX"
-  | RCX => "RCX"
-  | RDX => "RDX"
-  | RBX => "RBX"
-  | RSP => "RSP"
-  | RBP => "RBP"
-  | RSI => "RSI"
-  | RDI => "RDI"
-  | R8  => "R8"
-  | R9  => "R9"
-  | R10 => "R10"
-  | R11 => "R11"
-  | R12 => "R12"
-  | R13 => "R13"
-  | R14 => "R14"
-  | R15 => "R15"
+  | XZR => "XZR"
+  | SP => "SP"
+  | PC => "PC"
+  | X i => "X " ++ HexString.of_nat i
   end%string.
 
-Lemma x86_string_of_register_inj : injective x86_string_of_register.
-Proof. 
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
+Lemma cat_string_eq (a b c : string) : (append a b == append a c) -> (b == c).
+Proof.
+Admitted.
 
-Instance x86_reg_toS : ToString sword64 [finType of register] := 
+Lemma arm_string_of_register_inj : injective arm_string_of_register.
+Proof. 
+  move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => [|||i] [|||j] //.
+  rewrite /arm_string_of_register.
+  move/cat_string_eq/eqP => eq_of_nat.
+  apply/eqP; move: (to_nat_of_nat j).
+  rewrite -eq_of_nat to_nat_of_nat.
+  (*Unset Printing Notations.*)
+  (*by move => ->.
+Qed.
+*)
+Admitted.
+
+Lemma finC_register : finTypeC register.
+Proof.
+Admitted.
+
+Instance arm_reg_toS : ToString sword64 [finType of register] := 
   {| category      := "register"
-   ; to_string     := x86_string_of_register
-   ; strings       := [seq (x86_string_of_register x, x) | x <- enum [finType of register]]
-   ; inj_to_string := x86_string_of_register_inj
+   ; _finC         := finC_register
+   ; to_string     := arm_string_of_register
+   ; strings       := [seq (arm_string_of_register x, x) | x <- enum cfinT_finType]
+   ; inj_to_string := arm_string_of_register_inj
    ; stringsE      := refl_equal
   |}.
 
 (* -------------------------------------------------------------------- *)
-Definition x86_string_of_xmm_register r : string :=
+Definition arm_string_of_simd_register r : string :=
   match r with
-  | XMM0 => "XMM0"
-  | XMM1 => "XMM1"
-  | XMM2 => "XMM2"
-  | XMM3 => "XMM3"
-  | XMM4 => "XMM4"
-  | XMM5 => "XMM5"
-  | XMM6 => "XMM6"
-  | XMM7 => "XMM7"
-  | XMM8 => "XMM8"
-  | XMM9 => "XMM9"
-  | XMM10 => "XMM10"
-  | XMM11 => "XMM11"
-  | XMM12 => "XMM12"
-  | XMM13 => "XMM13"
-  | XMM14 => "XMM14"
-  | XMM15 => "XMM15"
+  | V i => "V " ++ HexString.of_nat i
   end.
 
-Lemma x86_string_of_xmm_register_inj : injective x86_string_of_xmm_register.
+Lemma arm_string_of_simd_register_inj : injective arm_string_of_simd_register.
 Proof. 
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
+  move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => [i] [j].
+  rewrite /arm_string_of_register.
+  move/cat_string_eq/eqP => eq_of_nat.
+  apply/eqP; move: (to_nat_of_nat j).
+  rewrite -eq_of_nat to_nat_of_nat.
+  (*by move => ->.
+Qed.*)
+Admitted.
 
-Instance x86_xreg_toS : ToString sword256 [finType of xmm_register] := 
+Lemma finC_simd_register : finTypeC simd_register.
+Proof.
+Admitted.
+
+Instance arm_xreg_toS : ToString sword256 [finType of simd_register] := 
   {| category      := "ymm_register"
-   ; to_string     := x86_string_of_xmm_register
-   ; strings       := [seq (x86_string_of_xmm_register x, x) | x <- enum [finType of xmm_register]]
-   ; inj_to_string := x86_string_of_xmm_register_inj
+   ; _finC         := finC_simd_register
+   ; to_string     := arm_string_of_simd_register
+   ; strings       := [seq (arm_string_of_simd_register x, x) | x <- enum cfinT_finType]
+   ; inj_to_string := arm_string_of_simd_register_inj
    ; stringsE      := refl_equal
   |}.
 
 (* -------------------------------------------------------------------- *)
-Definition x86_string_of_rflag (rf : rflag) : string :=
+Definition arm_string_of_rflag (rf : rflag) : string :=
   match rf with
- | CF => "CF"
- | PF => "PF"
- | ZF => "ZF"
- | SF => "SF"
- | OF => "OF"
- | DF => "DF"
- end%string.
+  | FN => "N"
+  | FZ => "Z"
+  | FC => "C"
+  | FV => "V"
+  end%string.
 
-Lemma x86_string_of_rflag_inj : injective x86_string_of_rflag.
+Lemma arm_string_of_rflag_inj : injective arm_string_of_rflag.
 Proof. 
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
+  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[].
 Qed.
 
-Instance x86_rflag_toS : ToString sbool [finType of rflag] := 
+Lemma finC_rflag : finTypeC rflag.
+Proof.
+Admitted.
+
+Instance arm_rflag_toS : ToString sbool [finType of rflag] := 
   {| category      := "rflag"
-   ; to_string     := x86_string_of_rflag
-   ; strings       := [seq (x86_string_of_rflag x, x) | x <- enum [finType of rflag]]
-   ; inj_to_string := x86_string_of_rflag_inj
+   ; _finC         := finC_rflag
+   ; to_string     := arm_string_of_rflag
+   ; strings       := [seq (arm_string_of_rflag x, x) | x <- enum cfinT_finType]
+   ; inj_to_string := arm_string_of_rflag_inj
    ; stringsE      := refl_equal
   |}.
 
 (* -------------------------------------------------------------------- *)
 
-Instance x86_decl : arch_decl :=
-  {| reg_t     := [finType of register]
-   ; xreg_t    := [finType of xmm_register]
-   ; rflag_t   := [finType of rflag]
-   ; cond_t    := [eqType of condt]
-   ; xreg_size := U256
-   ; toS_r     := x86_reg_toS
-   ; toS_x     := x86_xreg_toS
-   ; toS_f     := x86_rflag_toS |}.
+Lemma cond_eqC_arm : eqTypeC [eqType of condt].
+Proof.
+Admitted.
+
+Instance arm_decl : (arch_decl [finType of register] [finType of simd_register] [finType of rflag] [eqType of condt]) :=
+  {| xreg_size := U256
+   ; cond_eqC  := cond_eqC_arm
+   ; toS_r     := arm_reg_toS
+   ; toS_x     := arm_xreg_toS
+   ; toS_f     := arm_rflag_toS |}.
 
 
 
