@@ -305,6 +305,7 @@ Proof. by case: s. Qed.
 
 Section SEM.
 
+Context {asm_op} {asmop:asmOp asm_op}.
 Context {T} {pT:progT T}.
 
 Class semCallParams := SemCallParams {
@@ -524,7 +525,7 @@ Section SEM_IND.
       Pi_r s1 (Cassgn x tag ty e) s2.
 
   Definition sem_Ind_opn : Prop :=
-    forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
+    forall (s1 s2 : estate) t (o : asm_op) (xs : lvals) (es : pexprs),
       sem_sopn gd o s1 xs es = ok s2 →
       Pi_r s1 (Copn xs t o es) s2.
 
@@ -751,6 +752,9 @@ Proof.
   by move=> /to_wordI [ws' [w [? -> ?]]] /=.
 Qed.
 
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subtype (sopn_tin o) (List.map type_of_val vs).
 Proof.
@@ -760,6 +764,8 @@ Proof.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
   by t_xrbindP => sv /= /of_val_subtype -> /hrec.
 Qed.
+
+End Section.
 
 Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v vm x P:
   (forall n t, vtype x = sarr n -> 
@@ -1071,7 +1077,7 @@ Qed.
 
 
 Section Write.
-
+Context {asm_op} {asmop:asmOp asm_op}.
 Context {T} {pT:progT T} {sCP : semCallParams}.
 
 Variable P : prog.
@@ -1080,7 +1086,7 @@ Variable ev : extra_val_t.
 Lemma writeP c s1 s2 :
    sem P ev s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c].
 Proof.
-  apply (@sem_Ind _ _ sCP P ev (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
+  apply (@sem_Ind _ _ _ _ sCP P ev (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
                   (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_i i])
                   (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_I i])
                   (fun x ws s1 c s2 =>
@@ -1924,6 +1930,9 @@ move => /value_uinclE; case: v => //.
 by move=> [] // ?? [?] /=; case: v' => //= -[].
 Qed.
 
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
 Lemma vuincl_exec_opn_eq o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exec_sopn o vs' = ok v.
@@ -1936,6 +1945,8 @@ Lemma vuincl_exec_opn o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists v', exec_sopn o vs' = ok v' /\ List.Forall2  value_uincl v v'.
 Proof. move => /vuincl_exec_opn_eq h /h {h}; eauto using List_Forall2_refl. Qed.
+
+End Section.
 
 Lemma set_vm_uincl vm vm' x z z' :
   vm_uincl vm vm' ->
@@ -2306,6 +2317,7 @@ Qed.
 
 Section UNDEFINCL.
 
+Context {asm_op} {asmop:asmOp asm_op}.
 Context {T} {pT:progT T} {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.
@@ -2473,7 +2485,7 @@ Lemma sem_call_uincl vargs m1 f m2 vres vargs':
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2486,7 +2498,7 @@ Lemma sem_i_uincl s1 i s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_i_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_i_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2499,7 +2511,7 @@ Lemma sem_I_uincl s1 i s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_I_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_I_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2512,7 +2524,7 @@ Lemma sem_uincl s1 c s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2640,8 +2652,8 @@ Qed.
  * -------------------------------------------------------------------- *)
 
 Instance sCP_unit : @semCallParams _ progUnit := 
-  {| init_state := fun _ _ _ s => ok s;
-     finalize   := fun _ m => m; |}.
+  { init_state := fun _ _ _ s => ok s;
+     finalize   := fun _ m => m; }.
 
 (* ** Semantic with stack 
  * -------------------------------------------------------------------- *)
@@ -2656,9 +2668,9 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
 
-Instance sCP_stack : @semCallParams _ progStack :=
-  {| init_state := init_stk_state;
-     finalize   := finalize_stk_mem; |}.
+Instance sCP_stack : @semCallParams _ progStack := 
+  { init_state := init_stk_state;
+      finalize := finalize_stk_mem; }.
 
 (* -------------------------------------------------------------------- *)
 
@@ -2721,10 +2733,13 @@ Section WF.
     apply: rbindP => s1' /(wf_write_lval Hwf);apply Hrec.
   Qed.
 
+  Section Section.
+  Context {asm_op} {asmop:asmOp asm_op}.
+
   Lemma wf_sem p ev s1 c s2 :
     sem p ev s1 c s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
   Proof.
-    apply (@cmd_rect
+    apply (@cmd_rect _ _
              (fun i => forall s1 s2, sem_i p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2))
              (fun i => forall s1 s2, sem_I p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2))
              (fun c => forall s1 s2, sem   p ev s1 c s2 -> wf_vm (evm s1) -> wf_vm (evm s2)))=>
@@ -2750,6 +2765,8 @@ Section WF.
     + move=> i xs f es s1 s2 /sem_iE [vs] [m2] [rs] [_ _ ok_s2] hw.
       by apply: wf_write_lvals ok_s2.
   Qed.
+
+  End Section.
 
   Lemma wf_vm_uincl vm : wf_vm vm -> vm_uincl vmap0 vm.
   Proof.
@@ -2777,3 +2794,9 @@ Proof.
   move=> ????? => /=; rewrite /init_stk_state; t_xrbindP => ?? h1 h2.
   apply: wf_write_vars h1; apply wf_vmap0.
 Qed.
+
+
+
+
+
+

@@ -180,13 +180,6 @@ Definition decode_addr (s:asmmem) (a:address) : pointer :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition check_oreg or ai :=
-  match or, ai with
-  | Some r, Reg r'  => r == r' ::>
-  | Some _, Imm _ _ => true
-  | Some _, _       => false
-  | None, _         => true
-  end.
 
 Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
   match a with

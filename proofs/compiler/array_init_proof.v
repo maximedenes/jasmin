@@ -36,6 +36,9 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Section Op.
+Context {asm_op} {asmop:asmOp asm_op}.
+
 Section Section.
 
 Context {T:eqType} {pT:progT T} {sCP: semCallParams} (wf_init: wf_init sCP).
@@ -254,7 +257,7 @@ Section REMOVE_INIT.
     sem_call p ev mem f va mem' vr ->
     exists vr', sem_call p' ev mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn
+    move=> /(@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn
              Rif_true Rif_false Rwhile_true Rwhile_false Rfor Rfor_nil Rfor_cons Rcall Rproc) H.
     by move=> /H.
   Qed.
@@ -559,9 +562,10 @@ Section ADD_INIT.
     sem_call p ev mem f va mem' vr ->
     sem_call p' ev mem f va mem' vr.
   Proof.
-    by apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun RAnil RAcons RAmkI RAasgn RAopn
+    by apply (@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun RAnil RAcons RAmkI RAasgn RAopn
                RAif_true RAif_false RAwhile_true RAwhile_false RAfor RAfor_nil RAfor_cons RAcall RAproc).
   Qed.
 
 End ADD_INIT.
 
+End Op.

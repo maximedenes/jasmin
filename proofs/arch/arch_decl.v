@@ -121,9 +121,7 @@ Definition address_beq (addr1: address) addr2 :=
 
 Lemma address_eq_axiom : Equality.axiom address_beq.
 Proof.
- case=> [ra1 | p1] [ra2 | p2];apply: (iffP idP) => //=.
- + by move=> /eqP ->. + by move=> [->].
- + by move=> /eqP ->. + by move=> [->].
+  by case=> []? []? /=; (constructor || apply: reflect_inj eqP => ?? []).
 Qed.
 
 Definition address_eqMixin := Equality.Mixin address_eq_axiom.
@@ -191,8 +189,8 @@ Variant implicite_arg : Type :=
   | IAreg   of reg_t.      
 
 Variant adr_kind : Type := 
-  | Compute  (* Compute the address *)
-  | Load.    (* Compute the address and load from memory *)
+  | Compute of wsize (* Compute the address *)
+  | Load.            (* Compute the address and load from memory *)
 
 Variant arg_desc :=
 | ADImplicit  of implicite_arg
@@ -201,8 +199,16 @@ Variant arg_desc :=
 Definition F  f   := ADImplicit (IArflag f).
 Definition R  r   := ADImplicit (IAreg   r).
 Definition E  n   := ADExplicit Load n None.
-Definition Ec n   := ADExplicit Compute n None.
+Definition Ec ws n := ADExplicit (Compute ws) n None.
 Definition Ef n r := ADExplicit Load n (Some  r).
+
+Definition check_oreg or ai :=
+  match or, ai with
+  | Some r, Reg r'  => r == r' ::>
+  | Some _, Imm _ _ => true
+  | Some _, _       => false
+  | None, _         => true
+  end.
 
 Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
   match ad with
