@@ -9,6 +9,9 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
 Fixpoint i_Calls (i : instr) {struct i} : Sp.t :=
   let: MkI _ i := i in i_Calls_r i
 
@@ -77,22 +80,22 @@ Definition CallsE :=
 Lemma c_callsE c i : Sp.Equal (c_calls c i) (Sp.union c (c_Calls i)).
 Proof.
 move: c.
-apply (@cmd_rect
+apply (@cmd_rect _ _
          (fun i => forall c, Sp.Equal (i_calls_r c i) (Sp.union c (i_Calls_r i)))
          (fun i => forall c, Sp.Equal (i_calls c i) (Sp.union c (i_Calls i)))
          (fun i => forall c, Sp.Equal (c_calls c i) (Sp.union c (c_Calls i)))) => /=
   [ i0 ii Hi | | i0 c0 Hi Hc | x t e | xs o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es ] c //.
-+ rewrite CallsE; SpD.fsetdec.
-+ rewrite /= CallsE Hc Hi; SpD.fsetdec.
-+ SpD.fsetdec.
-+ SpD.fsetdec.
-+ rewrite -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _) Hc2 Hc1 -/(c_Calls _) -/(c_Calls _); SpD.fsetdec.
-+ rewrite -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _) Hc' Hc -/(c_Calls _) -/(c_Calls _); SpD.fsetdec.
-+ SpD.fsetdec.
++ by apply Hi.
++ by rewrite CallsE; SpD.fsetdec.
++ by rewrite /= CallsE Hc Hi; SpD.fsetdec.
++ by SpD.fsetdec.
++ by SpD.fsetdec.
++ by rewrite /i_calls_r /= -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _) Hc2 Hc1 -/(c_Calls _) -/(c_Calls _); SpD.fsetdec.
++ by apply Hc. 
++ by rewrite /i_calls_r /= -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _) Hc' Hc -/(c_Calls _) -/(c_Calls _); SpD.fsetdec.
+by rewrite /i_calls_r /=; SpD.fsetdec.
 Qed.
-
-Section Section.
 
 Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
 
@@ -293,7 +296,7 @@ Section PROOF.
     sem_call p' ev mem fd va mem' vr.
   Proof.
     move=> Hincl H.
-    apply: (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply: (@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
            Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)=> //.
     move => ??; SpD.fsetdec.
   Qed.
