@@ -46,7 +46,7 @@ HexString.
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
+ 
 (* -------------------------------------------------------------------- *)
 Variant register : Type :=
   | XZR | SP | PC | X of 'I_31.
@@ -265,42 +265,31 @@ Definition arm_string_of_register r :=
   | X i => "X " ++ HexString.of_nat i
   end%string.
 
-Lemma cat_string_eq (a b c : string) : (append a b == append a c) -> (b == c).
-Proof.
-Admitted.
+(* TODO: move *)
+Lemma cat_string_eq (a b c : string) : (append a b = append a c) -> (b = c).
+Proof. by elim: a => //= x a hrec [] /hrec. Qed.
 
 Lemma arm_string_of_register_inj : injective arm_string_of_register.
 Proof. 
-  move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => [|||i] [|||j] //.
-  rewrite /arm_string_of_register.
-  move/cat_string_eq/eqP => eq_of_nat.
-  apply/eqP; move: (to_nat_of_nat j).
-  rewrite -eq_of_nat to_nat_of_nat.
-  (*Unset Printing Notations.*)
-  (*by move => ->.
-Qed.
-*)
-Admitted.
-
-Lemma eqTC_register : eqTypeC register.
-Proof.
-  by eexists; apply reg_eq_axiom.
+  move=> r1 r2 h; case: r1 r2 h => [|||i] [|||j] //.
+  rewrite /arm_string_of_register => /cat_string_eq eq_of_nat.
+  move: (to_nat_of_nat j).
+  by rewrite -eq_of_nat to_nat_of_nat => /ord_inj ->.
 Qed.
 
-Lemma finC_register : finTypeC register.
-Proof.
-  exists eqTC_register registers.
-  move: registers_fin_axiom.
-Admitted.
+Instance eqTC_register : eqTypeC register :=
+  { ceqP := reg_eq_axiom }.
 
-Instance arm_reg_toS : ToString sword64 [finType of register] := 
-  {| category      := "register"
-   ; _finC         := finC_register
-   ; to_string     := arm_string_of_register
-   ; strings       := [seq (arm_string_of_register x, x) | x <- enum cfinT_finType]
-   ; inj_to_string := arm_string_of_register_inj
-   ; stringsE      := refl_equal
-  |}.
+Instance finC_register : finTypeC register := 
+  { cenumP := registers_fin_axiom }.
+
+Instance arm_reg_toS : ToString sword64 register := 
+  {  category      := "register"
+  ; to_string     := arm_string_of_register
+  ; strings       := [seq (arm_string_of_register x, x) | x <- enum cfinT_finType]
+  ; inj_to_string := arm_string_of_register_inj
+  ; stringsE      := refl_equal
+  }.
 
 (* -------------------------------------------------------------------- *)
 Definition arm_string_of_simd_register r : string :=
@@ -310,34 +299,26 @@ Definition arm_string_of_simd_register r : string :=
 
 Lemma arm_string_of_simd_register_inj : injective arm_string_of_simd_register.
 Proof. 
-  move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => [i] [j].
-  rewrite /arm_string_of_register.
-  move/cat_string_eq/eqP => eq_of_nat.
-  apply/eqP; move: (to_nat_of_nat j).
+  move=> r1 r2 h; case: r1 r2 h => [i] [j].
+  rewrite /arm_string_of_register => /cat_string_eq eq_of_nat.
+  move: (to_nat_of_nat j).
   rewrite -eq_of_nat to_nat_of_nat.
-  (*by move => ->.
-Qed.*)
-Admitted.
-
-Lemma eqTC_simd_register : eqTypeC simd_register.
-Proof.
-  by eexists; apply xreg_eq_axiom.
+  by move=> /ord_inj ->.
 Qed.
 
-Lemma finC_simd_register : finTypeC simd_register.
-Proof.
-  exists eqTC_simd_register simd_registers.
-  move: simd_registers_fin_axiom.
-Admitted.
+Instance eqTC_simd_register : eqTypeC simd_register := 
+  { ceqP := xreg_eq_axiom }.
 
-Instance arm_xreg_toS : ToString sword256 [finType of simd_register] := 
-  {| category      := "ymm_register"
-   ; _finC         := finC_simd_register
-   ; to_string     := arm_string_of_simd_register
-   ; strings       := [seq (arm_string_of_simd_register x, x) | x <- enum cfinT_finType]
-   ; inj_to_string := arm_string_of_simd_register_inj
-   ; stringsE      := refl_equal
-  |}.
+Instance finC_simd_register : finTypeC simd_register := 
+  { cenumP := simd_registers_fin_axiom }.
+
+Instance arm_xreg_toS : ToString sword256 simd_register := 
+  { category      := "ymm_register"
+  ; to_string     := arm_string_of_simd_register
+  ; strings       := [seq (arm_string_of_simd_register x, x) | x <- enum cfinT_finType]
+  ; inj_to_string := arm_string_of_simd_register_inj
+  ; stringsE      := refl_equal
+  }.
 
 (* -------------------------------------------------------------------- *)
 Definition arm_string_of_rflag (rf : rflag) : string :=
@@ -353,38 +334,32 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[].
 Qed.
 
-Lemma eqTC_rflag : eqTypeC rflag.
-Proof.
-  by eexists; apply rflag_eq_axiom.
-Qed.
+Instance eqTC_rflag : eqTypeC rflag := 
+  { ceqP := rflag_eq_axiom }.
 
-Lemma finC_rflag : finTypeC rflag.
-Proof.
-  exists eqTC_rflag rflags.
-  move: rflags_fin_axiom.
-Admitted.
+Instance finC_rflag : finTypeC rflag := 
+  { cenumP :=  rflags_fin_axiom }.
 
-Instance arm_rflag_toS : ToString sbool [finType of rflag] := 
-  {| category      := "rflag"
-   ; _finC         := finC_rflag
-   ; to_string     := arm_string_of_rflag
-   ; strings       := [seq (arm_string_of_rflag x, x) | x <- enum cfinT_finType]
-   ; inj_to_string := arm_string_of_rflag_inj
-   ; stringsE      := refl_equal
-  |}.
+Instance arm_rflag_toS : ToString sbool rflag := 
+  { category      := "rflag"
+  ; to_string     := arm_string_of_rflag
+  ; strings       := [seq (arm_string_of_rflag x, x) | x <- enum cfinT_finType]
+  ; inj_to_string := arm_string_of_rflag_inj
+  ; stringsE      := refl_equal
+  }.
 
 (* -------------------------------------------------------------------- *)
 
-Lemma cond_eqC_arm : eqTypeC [eqType of condt].
-Proof.
-Admitted.
+Instance cond_eqC_arm : eqTypeC condt := 
+ { ceqP := condt_eq_axiom }.
 
-Instance arm_decl : (arch_decl [finType of register] [finType of simd_register] [finType of rflag] [eqType of condt]) :=
-  {| xreg_size := U256
-   ; cond_eqC  := cond_eqC_arm
-   ; toS_r     := arm_reg_toS
-   ; toS_x     := arm_xreg_toS
-   ; toS_f     := arm_rflag_toS |}.
+Instance arm_decl : (arch_decl register simd_register rflag condt) :=
+  { xreg_size := U256
+  ; toS_r     := arm_reg_toS
+  ; toS_x     := arm_xreg_toS
+  ; toS_f     := arm_rflag_toS
+  }.
+
 
 
 
