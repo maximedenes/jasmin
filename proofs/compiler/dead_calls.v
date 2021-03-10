@@ -8,6 +8,9 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
 (* -------------------------------------------------------------------- *)
 Fixpoint i_calls (c : Sp.t) (i : instr) {struct i} : Sp.t :=
   let: MkI _ i := i in i_calls_r c i
@@ -30,8 +33,6 @@ Definition c_calls (c : Sp.t) (cmd : cmd) :=
   foldl i_calls c cmd.
 
 (* -------------------------------------------------------------------- *)
-
-Section Section.
 
 Context {T} {pT:progT T}.
 

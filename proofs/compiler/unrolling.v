@@ -37,10 +37,13 @@ Local Open Scope seq_scope.
 (* ** unrolling
  * -------------------------------------------------------------------- *)
 
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
+
 Definition unroll_cmd (unroll_i: instr -> cmd) (c:cmd) : cmd :=
   List.fold_right (fun i c' => unroll_i i ++ c') [::] c.
 
-Definition assgn ii x e := MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e).
+Definition assgn ii x e := @MkI asm_op ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e).
 
 Fixpoint unroll_i (i:instr) : cmd :=
   let (ii, ir) := i in
@@ -60,8 +63,6 @@ Fixpoint unroll_i (i:instr) : cmd :=
   | Cwhile a c e c'  => [:: MkI ii (Cwhile a (unroll_cmd unroll_i c) e (unroll_cmd unroll_i c')) ]
   | Ccall _ _ _ _  => [:: i ]
   end.
-
-Section Section.
 
 Context {T} {pT:progT T}.
 

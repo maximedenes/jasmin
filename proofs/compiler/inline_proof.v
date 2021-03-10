@@ -37,6 +37,7 @@ Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 Section INLINE.
+Context {asm_op} {asmop:asmOp asm_op}.
 
 Context (inline_var: var -> bool).
 Variable rename_fd : instr_info -> funname -> ufundef -> ufundef.
@@ -68,7 +69,7 @@ Section INCL.
 
   Lemma inline_c_incl c : Pc c.
   Proof.
-    apply (@cmd_rect Pr Pi Pc) => // {c}.
+    apply (@cmd_rect _ _ Pr Pi Pc) => // {c}.
     + move=> i c Hi Hc X1 c' X2 /=.
       apply:rbindP => -[Xc cc] /Hc -> /=.
       by apply:rbindP => -[Xi ci] /Hi ->.
@@ -203,17 +204,17 @@ Section SUBSET.
 
   Lemma inline_c_subset c : Pc c.
   Proof.
-    by apply (@cmd_rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
+    by apply (@cmd_rect _ _ Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i_subset i : Pr i.
   Proof.
-    by apply (@instr_r_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
+    by apply (@instr_r_Rect _ _ Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i'_subset i : Pi i.
   Proof.
-    by apply (@instr_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
+    by apply (@instr_Rect _ _ Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
 End SUBSET.
@@ -688,7 +689,7 @@ Section PROOF.
       sem_call p' ev mem f va' mem' vr' /\  List.Forall2 value_uincl vr vr'.
   Proof.
     move=> Hall Hsem.
-    apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
                Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
                mem f va mem' vr Hsem _ Hall).
   Qed.

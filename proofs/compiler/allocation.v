@@ -237,6 +237,10 @@ Definition check_var x1 x2 r := check_lval None (Lvar x1) (Lvar x2) r.
 
 Definition check_vars xs1 xs2 r := check_lvals (map Lvar xs1) (map Lvar xs2) r.
 
+Section Section.
+
+Context {asm_op} {asmop:asmOp asm_op}.
+
 Fixpoint check_i iinfo i1 i2 r :=
   match i1, i2 with
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
@@ -244,9 +248,9 @@ Fixpoint check_i iinfo i1 i2 r :=
       add_iinfo iinfo (check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2)
     else cierror iinfo (Cerr_neqty ty1 ty2 salloc)
   | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
-    if o1 == o2 then
+    if (o1 == o2 ::>) then
       add_iinfo iinfo (check_es es1 es2 r >>= check_lvals xs1 xs2)
-    else cierror iinfo (Cerr_neqop o1 o2 salloc)
+    else cierror iinfo (Cerr_neqop salloc)
   | Ccall _ x1 f1 arg1, Ccall _ x2 f2 arg2 =>
     if f1 == f2 then
       add_iinfo iinfo (check_es arg1 arg2 r >>= check_lvals x1 x2)
@@ -273,7 +277,7 @@ Fixpoint check_i iinfo i1 i2 r :=
     Let r := loop2 iinfo check_c Loop.nb r in
     ok r
 
-  | _, _ => cierror iinfo (Cerr_neqinstr i1 i2 salloc)
+  | _, _ => cierror iinfo (Cerr_neqinstr salloc)
   end
 
 with check_I i1 i2 r :=
@@ -301,6 +305,8 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
 Definition check_prog ep1 p_funcs1 ep2 p_funcs2 := 
   fold2 Ferr_neqprog (check_fundef ep1 ep2) p_funcs1 p_funcs2 tt.
 
+End Section.
+
 Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
   check_lvals xs1 xs2 r1 = ok r2 ->
   eq_alloc r1 s1.(evm) vm1 ->
@@ -320,7 +326,8 @@ Proof.
 Qed.
 
 Section PROOF.
-
+  Context {asm_op} {asmop:asmOp asm_op}.
+  
   Variable p1 p2:prog.
   Variable ev : extra_val_t.
 
@@ -664,13 +671,16 @@ Section PROOF.
     exists vr', sem_call p2 ev mem f va mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=>
-      /(@sem_call_Ind _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+      /(@sem_call_Ind _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
     move=> H;apply H.
     by apply List_Forall2_refl.
   Qed.
 
 End PROOF.
+
+Section Section.
+Context {asm_op} {asmop:asmOp asm_op}.
 
 Lemma alloc_callP ev gd ep1 p1 ep2 p2 (H: check_prog ep1 p1 ep2 p2 = ok tt) f mem mem' va vr:
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev mem f va mem' vr ->
@@ -700,6 +710,7 @@ Lemma alloc_funP_eq p ev fn f f' m1 m2 vargs vargs' vres vres' s0 s1 s2:
                 mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'] &
             m2 = finalize f'.(f_extra) s2.(emem) ].
   Proof. by apply alloc_funP_eq_aux. Qed.
+End Section.
 
 End MakeCheckAlloc.
 

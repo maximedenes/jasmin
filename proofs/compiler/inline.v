@@ -41,6 +41,7 @@ Local Open Scope seq_scope.
  * -------------------------------------------------------------------- *)
 
 Section INLINE.
+Context {asm_op} {asmop:asmOp asm_op}.
 
 Context (inline_var: var -> bool).
 
@@ -51,7 +52,7 @@ Definition get_flag (x:lval) flag :=
   end.
 
 Definition assgn_tuple iinfo (xs:lvals) flag (tys:seq stype) (es:pexprs) :=
-  let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2.1 xe.2.2) in
+  let assgn xe := @MkI asm_op iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2.1 xe.2.2) in
   map assgn (zip xs (zip tys es)).
 
 Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s :=

@@ -79,9 +79,9 @@ Variant asm_error :=
   | AsmErr_string of string & option pexpr
   | AsmErr_cond of pexpr.
 
-Section Section.
+(*Section Section.
 
-Context `{asmop:asmOp}.
+ Context `{asmop:asmOp}. *)
 
 Inductive error_msg :=
   | Cerr_varalloc : var_i -> var_i -> string -> error_msg
@@ -92,12 +92,12 @@ Inductive error_msg :=
   | Cerr_neqop1   : sop1 -> sop1 -> string -> error_msg
   | Cerr_neqop2   : sop2 -> sop2 -> string -> error_msg
   | Cerr_neqopN   : opN -> opN -> string -> error_msg
-  | Cerr_neqop    : asm_op -> asm_op -> string -> error_msg
+  | Cerr_neqop    : (* string (* asm_op *) -> string (* asm_op *) -> *) string -> error_msg
   | Cerr_neqdir   : string -> error_msg
   | Cerr_neqexpr  : pexpr -> pexpr -> string -> error_msg
   | Cerr_neqlval  : lval -> lval -> string -> error_msg
   | Cerr_neqfun   : funname -> funname -> string -> error_msg
-  | Cerr_neqinstr : instr_r -> instr_r -> string -> error_msg
+  | Cerr_neqinstr : (* instr_r -> instr_r -> *) string -> error_msg
   | Cerr_unknown_fun : funname -> string -> error_msg
   | Cerr_in_fun   : fun_error -> error_msg
   | Cerr_arr_exp  : pexpr -> pexpr -> error_msg
@@ -253,9 +253,9 @@ Lemma get_map_cfprog' {T1 T2} (F: T1 -> ciexec T2) p p' fn f':
   exists2 f, F f = ok f' & get_fundef p fn = Some f.
 Proof. apply get_map_cfprog_name'. Qed.
 
-End Section.
+(* End Section. *)
 
-Notation instr_error := (instr_info * error_msg)%type.
+(* Notation instr_error := (instr_info * error_msg)%type. *)
 
 Module Type LoopCounter.
   Parameter nb  : nat.
