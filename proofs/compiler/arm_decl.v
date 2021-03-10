@@ -106,10 +106,10 @@ Qed.
 
 Lemma reg_eq_axiom : Equality.axiom register_beq.
 Proof.
-  move=> [|||[mi i]] [|||[mj j]] /=; apply:(iffP idP) => //.
+  move=> [|||i] [|||j] /=; apply:(iffP idP) => //.
   + by move/eqP => ->.
-  move => [eqm]; apply/eqP.
-Admitted.
+  by move => [eqm]; apply/eqP.
+Qed.
 
 Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
 Canonical reg_eqType := EqType register reg_eqMixin.
@@ -123,10 +123,10 @@ Definition simd_register_beq (r1 r2 : simd_register) :=
 
 Lemma xreg_eq_axiom : Equality.axiom simd_register_beq.
 Proof.
-   move=> [[mi i]] [[mj j]] /=; apply:(iffP idP).
+  move=> [i] [j] /=; apply:(iffP idP).
   + by move/eqP => ->.
-  move => [eqm]; apply/eqP.
-Admitted.
+  by move => [eqm]; apply/eqP.
+Qed.
 
 Definition xreg_eqMixin := Equality.Mixin xreg_eq_axiom.
 Canonical xreg_eqType := EqType _ xreg_eqMixin.
@@ -175,7 +175,7 @@ Canonical condt_eqType := EqType condt condt_eqMixin.
 Definition registers :=
   (*Eval compute in*) [:: XZR; SP; PC] ++ [seq X i | i in 'I_31].
 
-(*Maybe do something general about 'I_n.*)
+(*TODO: Maybe do something general about 'I_n.*)
 Lemma registers_fin_axiom : Finite.axiom registers.
 Proof.
   case => [|||i] /=.
@@ -282,8 +282,15 @@ Qed.
 *)
 Admitted.
 
+Lemma eqTC_register : eqTypeC register.
+Proof.
+  by eexists; apply reg_eq_axiom.
+Qed.
+
 Lemma finC_register : finTypeC register.
 Proof.
+  exists eqTC_register registers.
+  move: registers_fin_axiom.
 Admitted.
 
 Instance arm_reg_toS : ToString sword64 [finType of register] := 
@@ -312,8 +319,15 @@ Proof.
 Qed.*)
 Admitted.
 
+Lemma eqTC_simd_register : eqTypeC simd_register.
+Proof.
+  by eexists; apply xreg_eq_axiom.
+Qed.
+
 Lemma finC_simd_register : finTypeC simd_register.
 Proof.
+  exists eqTC_simd_register simd_registers.
+  move: simd_registers_fin_axiom.
 Admitted.
 
 Instance arm_xreg_toS : ToString sword256 [finType of simd_register] := 
@@ -339,8 +353,15 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[].
 Qed.
 
+Lemma eqTC_rflag : eqTypeC rflag.
+Proof.
+  by eexists; apply rflag_eq_axiom.
+Qed.
+
 Lemma finC_rflag : finTypeC rflag.
 Proof.
+  exists eqTC_rflag rflags.
+  move: rflags_fin_axiom.
 Admitted.
 
 Instance arm_rflag_toS : ToString sbool [finType of rflag] := 
