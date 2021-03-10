@@ -916,9 +916,14 @@ Proof.
   by rewrite Hm Hs => -[] -> ? [] .
 Qed.
 
+Section OP.
+Context {asm_op} {asmop:asmOp asm_op}.
+
 Definition Mvarc_eq T := RelationPairs.RelProd (@Mvar_eq T) (@eq cmd).
 
 Section PROPER.
+
+  Arguments const_prop_i [_ _].
 
   Let Pr (i:instr_r) :=
     forall ii m1 m2, Mvar_eq m1 m2 -> Mvarc_eq (const_prop_ir m1 ii i) (const_prop_ir m2 ii i).
@@ -1024,7 +1029,7 @@ Proof.
 Qed.
 
 Lemma const_prop_m :
-  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop const_prop_i).
+  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop (@const_prop_i) ).
 Proof.
   move=> m1 m2 Hm c1 c2 <-.
   apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall c1) Hm.
@@ -1067,11 +1072,11 @@ Section PROOF.
   Let Pc s1 c s2 :=
     forall m,
       valid_cpm s1.(evm) m ->
-      valid_cpm s2.(evm) (const_prop const_prop_i m c).1 /\
+      valid_cpm s2.(evm) (const_prop (@const_prop_i) m c).1 /\
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem p' ev (with_vm s1 vm1) (const_prop const_prop_i m c).2 (with_vm s2 vm2) /\
+          sem p' ev (with_vm s1 vm1) (const_prop (@const_prop_i) m c).2 (with_vm s2 vm2) /\
           vm_uincl (evm s2) vm2.
 
   Let Pfor (i:var_i) zs s1 c s2 :=
@@ -1081,7 +1086,7 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-         sem_for p' ev i zs (with_vm s1 vm1) (const_prop const_prop_i m c).2 (with_vm s2 vm2) /\
+         sem_for p' ev i zs (with_vm s1 vm1) (const_prop (@const_prop_i) m c).2 (with_vm s2 vm2) /\
          vm_uincl (evm s2) vm2.
 
   Let Pfun m1 fd vargs m2 vres :=
@@ -1189,12 +1194,12 @@ Section PROOF.
       by apply: sem_app;eauto.
     have /Hw -/(_ ii) /=:= valid_cpm_rm eq1_3 Hm.
     have H1 := remove_cpm2 m ww.
-    have /= : Mvarc_eq (const_prop const_prop_i (remove_cpm m' (write_i (Cwhile a c e c'))) c)
+    have /= : Mvarc_eq (const_prop (@const_prop_i) (remove_cpm m' (write_i (Cwhile a c e c'))) c)
                (m'', c0).
     + by have := const_prop_m H1 (refl_equal c); rewrite Heq1.
     case: const_prop  => m2'' c2 [].
     rewrite /RelationPairs.RelCompFun /= => Hm2'' ->.
-    have /= : Mvarc_eq (const_prop const_prop_i m2'' c') (m_, c0').
+    have /= : Mvarc_eq (const_prop (@const_prop_i) m2'' c') (m_, c0').
     + by have := const_prop_m Hm2'' (refl_equal c'); rewrite Heq2.
     case: const_prop  => ? c2' [].
     rewrite /RelationPairs.RelCompFun /= => _ -> -[Hs4 Hsem];split.
@@ -1267,7 +1272,8 @@ Section PROOF.
     have Hm' : valid_cpm (evm s1') m.
     + have Hmi : Mvar_eq m (Mvar.remove m i).
       + move=> z;rewrite Mvar.removeP;case:ifPn => [/eqP <- | Hneq //].
-        rewrite Heqm;move: (remove_cpm_spec m (Sv.union (Sv.singleton i) (write_c c)) i).
+        rewrite Heqm. assert (h:= remove_cpm_spec m (Sv.union (Sv.singleton i) (write_c c)) i).
+        move: h.
         by case: Mvar.get => // a [];SvD.fsetdec.
       have -> := valid_cpm_m (refl_equal (evm s1')) Hmi.
       by apply: remove_cpm1P Hw Hm.
@@ -1316,11 +1322,13 @@ Section PROOF.
     List.Forall2 value_uincl va va' ->
     exists vr', sem_call p' ev mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    move=> /(@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h.
     apply h.
   Qed.
 
 End PROOF.
+
+End OP.
 
 End Section.

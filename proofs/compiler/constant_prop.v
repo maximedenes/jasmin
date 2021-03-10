@@ -487,9 +487,9 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
 
 Section CMD.
 
-  Variable const_prop_i : cpm -> instr -> cpm * cmd.
+  Variable const_prop_i : forall {asm_op} {asmop:asmOp asm_op}, cpm -> instr -> cpm * cmd.
 
-  Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd :=
+  Fixpoint const_prop {asm_op} {asmop:asmOp asm_op} (m:cpm) (c:cmd) : cpm * cmd :=
     match c with
     | [::] => (m, [::])
     | i::c =>
@@ -500,7 +500,7 @@ Section CMD.
 
 End CMD.
 
-Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+Fixpoint const_prop_ir {asm_op} {asmop:asmOp asm_op} (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   match ir with
   | Cassgn x tag ty e =>
     let e := const_prop_e m e in
@@ -519,10 +519,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     match is_bool b with
     | Some b =>
       let c := if b then c1 else c2 in
-      const_prop const_prop_i m c
+      const_prop (@const_prop_i) m c
     | None =>
-      let (m1,c1) := const_prop const_prop_i m c1 in
-      let (m2,c2) := const_prop const_prop_i m c2 in
+      let (m1,c1) := const_prop (@const_prop_i) m c1 in
+      let (m2,c2) := const_prop (@const_prop_i) m c2 in
       (merge_cpm m1 m2, [:: MkI ii (Cif b c1 c2) ])
     end
 
@@ -530,14 +530,14 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let e1 := const_prop_e m e1 in
     let e2 := const_prop_e m e2 in
     let m := remove_cpm m (write_i ir) in
-    let (_,c) := const_prop const_prop_i m c in
+    let (_,c) := const_prop (@const_prop_i) m c in
     (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ])
 
   | Cwhile a c e c' =>
     let m := remove_cpm m (write_i ir) in
-    let (m',c) := const_prop const_prop_i m c in
+    let (m',c) := const_prop (@const_prop_i) m c in
     let e := const_prop_e m' e in
-    let (_,c') := const_prop const_prop_i m' c' in
+    let (_,c') := const_prop (@const_prop_i) m' c' in
     let cw :=
       match is_bool e with
       | Some false => c
@@ -550,17 +550,18 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     (m, [:: MkI ii (Ccall fi xs f es) ])
   end
 
-with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
+with const_prop_i {asm_op} {asmop:asmOp asm_op} (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
   const_prop_ir m ii ir.
 
 Section Section.
 
+Context {asm_op} {asmop:asmOp asm_op}. 
 Context {T} {pT:progT T}.
 
 Definition const_prop_fun (f:fundef) :=
   let 'MkFun ii si p c so r ev := f in
-  let (_, c) := const_prop const_prop_i empty_cpm c in
+  let (_, c) := const_prop (@const_prop_i) empty_cpm c in
   MkFun ii si p c so r ev.
 
 Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
