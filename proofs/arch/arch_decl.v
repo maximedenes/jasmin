@@ -27,24 +27,11 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Export utils strings wsize memory_model global Utf8 Relation_Operators sem_type.
+Require Export utils strings wsize memory_model global Utf8 Relation_Operators sem_type label.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-(* ==================================================================== *)
-Definition label := positive.
-Definition remote_label := (funname * label)%type.
-
-(* Indirect jumps use labels encoded as pointers: we assume such an encoding exists.
-  The encoding and decoding functions are parameterized by a domain:
-  they are assumed to succeed on this domain only.
-*)
-Parameter encode_label : seq remote_label → remote_label → option pointer.
-Parameter decode_label : seq remote_label → pointer → option remote_label.
-Axiom decode_encode_label : ∀ dom lbl, obind (decode_label dom) (encode_label dom lbl) = Some lbl.
-Axiom encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
 
 (* ==================================================================== *)
 Class ToString (t:stype) (T:Type) := 

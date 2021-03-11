@@ -16,6 +16,7 @@ arch/arch_decl.v
 arch/arch_to_expr.v
 arch/arch_sem.v
 arch/asm_gen.v
+arch/label.v
 compiler/allocation.v
 compiler/array_expansion.v
 compiler/array_init.v
