@@ -467,6 +467,22 @@ Definition assert_check E b (e:E) :=
   if check then assert b e
   else ok tt.
 
+Inductive vptr_kind :=
+  | VKglob of Z * wsize
+  | VKptr  of ptr_kind.
+
+Definition var_kind := option vptr_kind.
+
+(* Return an instruction that computes an address from an base address and an
+   offset.
+   This is architecture-specific. *)
+Variable mov_ofs
+  :  lval       (* The variable to save the address to. *)
+  -> vptr_kind  (* The kind of address to compute. *)
+  (* Shouldn't this be a gvar instead of a pexpr? *)
+  -> pexpr      (* Variable with base address. *)
+  -> Z          (* Offset. *)
+  -> instr_r.
 
 Section Section.
 
@@ -496,12 +512,6 @@ Definition check_var (x:var_i) :=
     Error (stk_error x (pp_box [::
       pp_var x; pp_s "is a stack variable, but a reg variable is expected"]))
   end.
-
-Inductive vptr_kind := 
-  | VKglob of Z * wsize
-  | VKptr  of ptr_kind.
-
-Definition var_kind := option vptr_kind.
 
 Definition with_var xi x := 
   {| v_var := x; v_info := xi.(v_info) |}.
@@ -696,21 +706,6 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
 
 Definition nop := Copn [::] AT_none Onop [::]. 
 
-Definition lea_ptr x y ofs := 
-  Copn [::x] AT_none (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
-
-Definition mov_ptr x y :=
-  Copn [:: x] AT_none (Ox86 (MOV Uptr)) [::y].
-
-Inductive mov_kind := 
-  | MK_LEA 
-  | MK_MOV.
-
-Definition mov_ofs x mk y ofs := 
-  if mk is MK_LEA then lea_ptr x y ofs 
-  else
-    if ofs == 0%Z then mov_ptr x y else lea_ptr x y ofs.
-
 (* [is_spilling] is used for stack pointers. *)
 Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
   if is_spilling is Some (s, ws, z, f) then
@@ -720,11 +715,11 @@ Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
   else false.
 
 (* TODO: better error message *)
-Definition get_addr is_spilling rmap x dx sry mk y ofs := 
+Definition get_addr is_spilling rmap x dx sry vpk y ofs :=
   let ir :=
     if is_nop is_spilling rmap x sry then nop
     else
-      mov_ofs dx mk y ofs in
+      mov_ofs dx vpk y ofs in
   let rmap := Region.set_move rmap x sry in
   (rmap, ir).
 
@@ -771,12 +766,6 @@ Definition mk_addr_pexpr rmap x vpk :=
     Let xofs := addr_from_vpk x vpk in
     ok (Plvar xofs.1, xofs.2).
 
-Definition mk_mov vpk :=
-  match vpk with
-  | VKglob _ | VKptr (Pdirect _ _ _ _ Slocal) => MK_LEA
-  | _ => MK_MOV
-  end.
-
 (* TODO: the check [is_lvar] was removed, was it really on purpose? *)
 (* TODO : currently, we check that the source array is valid and set the target
    array as valid too. We could, instead, give the same validity to the target
@@ -806,11 +795,10 @@ Definition alloc_array_move rmap r e :=
       Let srs := check_vpk rmap vy vpk (Some ofs) len in
       let sry := srs.2 in
       Let eofs := mk_addr_pexpr rmap vy vpk in
-      let mk := mk_mov vpk in
-      ok (sry, mk, eofs.1, (eofs.2 + ofs)%Z)
+      ok (sry, vpk, eofs.1, (eofs.2 + ofs)%Z)
     end
   in
-  let '(sry, mk, ey, ofs) := sryl in
+  let '(sry, vpk, ey, ofs) := sryl in
   match subx with
   | None =>
     match get_local (v_var x) with
@@ -829,10 +817,12 @@ Definition alloc_array_move rmap r e :=
         let rmap := Region.set_move rmap x sry in
         ok (rmap, nop)
       | Pregptr p =>
-        ok (get_addr None rmap x (Lvar (with_var x p)) sry mk ey ofs)
+        ok (get_addr None rmap x (Lvar (with_var x p)) sry vpk ey ofs)
       | Pstkptr slot ofsx ws z x' =>
-        let (rmap, ir) :=
-          get_addr (Some (slot, ws, z, x')) rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_const (ofsx + z.(z_ofs)))) sry mk ey ofs in
+        let is_spilling := Some (slot, ws, z, x') in
+        let dx_ofs := cast_const (ofsx + z.(z_ofs)) in
+        let dx := Lmem Uptr (with_var x pmap.(vrsp)) dx_ofs in
+        let (rmap, ir) := get_addr is_spilling rmap x dx sry vpk ey ofs in
         ok (Region.set_stack_ptr rmap slot ws z x', ir)
       end
     end

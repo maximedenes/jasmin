@@ -60,6 +60,8 @@ compiler/x86_gen.v
 compiler/x86_gen_proof.v
 compiler/x86_instr_decl.v
 compiler/x86_sem.v
+compiler/x86_stack_alloc.v
+compiler/x86_stack_alloc_proof.v
 compiler/x86_variables.v
 compiler/x86_variables_proofs.v
 lang/array.v
