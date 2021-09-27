@@ -2424,14 +2424,31 @@ Qed.
 
 (* Return an instruction that computes an address from an base address and an
    offset. See `stack_alloc.v`. *)
-Variable (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> instr_r).
+Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
 
 (* The semantics of `mov_ofs` are as described in `stack_alloc.v`. *)
-Hypothesis mov_ofsP : forall P' s1 e i x ofs w vpk s2,
+Hypothesis mov_ofsP : forall P' s1 e i x ofs w vpk s2 ins,
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
+  mov_ofs x vpk e ofs = Some ins ->
   write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
-  sem_i P' w s1 (mov_ofs x vpk e ofs) s2.
+  sem_i P' w s1 ins s2.
+
+#[ local ]
+Lemma get_addr_Ok is_spilling rmap1 x dx sry vpk y ofs rmap2 ins:
+  get_addr mov_ofs is_spilling rmap1 x dx sry vpk y ofs = (rmap2, Some ins)
+  -> rmap2 = Region.set_move rmap1 x sry
+     /\ if is_nop is_spilling rmap1 x sry
+        then ins = nop
+        else mov_ofs dx vpk y ofs = Some ins.
+Proof.
+  rewrite /get_addr.
+  case: is_nop.
+  - by move=> [<- <-].
+  - case Hmov_ofs': mov_ofs => [?|].
+    + by move=> [<- <-].
+    + done.
+Qed.
 
 Lemma alloc_array_moveP m0 s1 s2 s1' rmap1 rmap2 r e v v' n i2 : 
   valid_state rmap1 m0 s1 s2 ->
@@ -2510,15 +2527,26 @@ Proof.
       exists s2; split; first by constructor.
       (* valid_state update *)
       by apply: (valid_state_set_move hvs hwf hlx _ (heqval _)).
-    + move=> p hlx hlocal [<- <-].
+    + move=> p hlx hlocal.
+      case Hmov_ofs: mov_ofs => [ins|];
+        last done.
+      move=> [<- <-].
       set vp := pof_val p.(vtype) (Vword (sub_region_addr (sub_region_at_ofs sry (Some ofs) len))).
       exists (with_vm s2 (evm s2).[p <- vp]); split.
       + rewrite /vp -sub_region_addr_offset haddr -GRing.addrA -wrepr_add.
-        apply (mov_ofsP _ _ P'_globs he1).
+        apply (mov_ofsP _ P'_globs he1 Hmov_ofs).
         by case: (p) hlocal.(wfr_rtype) => ? pn /= ->.
       (* valid_state update *)
       by apply (valid_state_set_move_regptr hvs hwf hlx (heqval _)).
-    move=> s ofs' ws z f hlx hlocal [<- hi2].
+    move=> s ofs' ws z f hlx hlocal.
+
+    rewrite -/(get_addr _ (Some (s, ws, z, f)) _ _ _ _ _ _ _).2.
+    case Hget_addr: get_addr => [rmap3 oins] /=.
+    case: oins Hget_addr; last done.
+    move=> ins Hget_addr [<- ?].
+    subst ins.
+    apply get_addr_Ok in Hget_addr.
+    move: Hget_addr => [_ hi2].
 
     have {hi2} [mem2 [hsemi hss hvalideq hreadeq hreadptr]]:
       exists mem2,
@@ -2530,21 +2558,22 @@ Proof.
             read mem2 p ws = read (emem s2) p ws) &
           read mem2 (sub_region_addr (sub_region_stkptr s ws z)) U64 =
             ok (sub_region_addr (sub_region_at_ofs sry (Some ofs) len))].
-    + subst i2.
+    + move: hi2 => /=.
       case: ifP.
-      + case heq: Mvar.get => [srx|//] /andP [/eqP heqsub hcheck].
+      + case heq: Mvar.get => [srx|//] /andP [/eqP heqsub hcheck] ?.
+        subst i2.
         exists (emem s2); split=> //.
         + by rewrite with_mem_same; constructor.
         + have /wfr_ptr := heq; rewrite hlx => -[_ [[<-] hpk]].
           rewrite -heqsub.
           by apply hpk.
-      have hwfs := sub_region_stkptr_wf hlocal.
-      have hvp: validw (emem s2) (sub_region_addr (sub_region_stkptr s ws z)) Uptr.
-      + apply (validw_sub_region_addr hvs hwfs).
+      + have hwfs := sub_region_stkptr_wf hlocal.
+        have hvp: validw (emem s2) (sub_region_addr (sub_region_stkptr s ws z)) Uptr.
+        apply (validw_sub_region_addr hvs hwfs).
         by apply (is_align_sub_region_stkptr hlocal).
       have /writeV -/(_ (w + wrepr U64 (ofs2 + ofs))%R) [mem2 hmem2] := hvp.
       exists mem2; split.
-      + apply (mov_ofsP _ _ P'_globs he1).
+      + apply (mov_ofsP _ P'_globs he1 hi2).
         rewrite /= vs_rsp /= !zero_extend_u.
         by rewrite -(sub_region_addr_stkptr hlocal) hmem2.
       + by apply (Memory.write_mem_stable hmem2).

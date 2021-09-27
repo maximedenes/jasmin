@@ -476,13 +476,12 @@ Definition var_kind := option vptr_kind.
 (* Return an instruction that computes an address from an base address and an
    offset.
    This is architecture-specific. *)
-Variable mov_ofs
+Context (mov_ofs
   :  lval       (* The variable to save the address to. *)
   -> vptr_kind  (* The kind of address to compute. *)
-  (* Shouldn't this be a gvar instead of a pexpr? *)
   -> pexpr      (* Variable with base address. *)
   -> Z          (* Offset. *)
-  -> instr_r.
+  -> option instr_r).
 
 Section Section.
 
@@ -716,10 +715,9 @@ Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
 
 (* TODO: better error message *)
 Definition get_addr is_spilling rmap x dx sry vpk y ofs :=
-  let ir :=
-    if is_nop is_spilling rmap x sry then nop
-    else
-      mov_ofs dx vpk y ofs in
+  let ir := if is_nop is_spilling rmap x sry
+            then Some nop
+            else mov_ofs dx vpk y ofs in
   let rmap := Region.set_move rmap x sry in
   (rmap, ir).
 
@@ -817,13 +815,27 @@ Definition alloc_array_move rmap r e :=
         let rmap := Region.set_move rmap x sry in
         ok (rmap, nop)
       | Pregptr p =>
-        ok (get_addr None rmap x (Lvar (with_var x p)) sry vpk ey ofs)
+        let (rmap, oir) :=
+            get_addr None rmap x (Lvar (with_var x p)) sry vpk ey ofs in
+        match oir with
+        | None =>
+          let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
+          Error (stk_error x err_pp)
+        | Some ir =>
+          ok (rmap, ir)
+        end
       | Pstkptr slot ofsx ws z x' =>
         let is_spilling := Some (slot, ws, z, x') in
         let dx_ofs := cast_const (ofsx + z.(z_ofs)) in
         let dx := Lmem Uptr (with_var x pmap.(vrsp)) dx_ofs in
-        let (rmap, ir) := get_addr is_spilling rmap x dx sry vpk ey ofs in
-        ok (Region.set_stack_ptr rmap slot ws z x', ir)
+        let (rmap, oir) := get_addr is_spilling rmap x dx sry vpk ey ofs in
+        match oir with
+        | None =>
+          let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
+          Error (stk_error x err_pp)
+        | Some ir =>
+          ok (Region.set_stack_ptr rmap slot ws z x', ir)
+        end
       end
     end
   | Some (ofs, len) =>

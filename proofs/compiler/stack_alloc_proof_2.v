@@ -1731,12 +1731,13 @@ Section PROC.
 Variable (P' : sprog).
 Hypothesis P'_globs : P'.(p_globs) = [::].
 
-Variable (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> instr_r).
-Hypothesis mov_ofsP : forall P' s1 e i x ofs w vpk s2,
+Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
+Hypothesis mov_ofsP : forall P' s1 e i x ofs w vpk s2 ins,
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
+  mov_ofs x vpk e ofs = Some ins ->
   write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
-  sem_i P' w s1 (mov_ofs x vpk e ofs) s2.
+  sem_i P' w s1 ins s2.
 
 Variable (local_alloc : funname -> stk_alloc_oracle_t).
 Hypothesis Halloc_fd : forall fn fd,
@@ -2707,12 +2708,13 @@ End INIT.
 
 Section WITH_MOV_OFS.
 
-Variable (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> instr_r).
-Hypothesis mov_ofsP : forall P' s1 e i x ofs w vpk s2,
+Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
+Hypothesis mov_ofsP : forall P' s1 e i x ofs w vpk s2 ins,
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
+  mov_ofs x vpk e ofs = Some ins ->
   write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
-  sem_i P' w s1 (mov_ofs x vpk e ofs) s2.
+  sem_i P' w s1 ins s2.
 
 Lemma get_alloc_fd p_extra mglob oracle fds1 fds2 :
   map_cfprog_name (alloc_fd mov_ofs p_extra mglob oracle) fds1 = ok fds2 ->

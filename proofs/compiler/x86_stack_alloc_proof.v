@@ -67,21 +67,18 @@ Section X86_PROOF.
 
 End X86_PROOF.
 
-Lemma x86_mov_ofsP P' s1 e i x ofs w vpk s2 :
+Lemma x86_mov_ofsP P' s1 e i x ofs w vpk s2 ins :
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
+  x86_mov_ofs x vpk e ofs = Some ins ->
   write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
-  sem_i P' w s1 (x86_mov_ofs x vpk e ofs) s2.
+  sem_i P' w s1 ins s2.
 Proof.
-  move=> P'_globs.
+  move=> P'_globs he.
   rewrite /x86_mov_ofs.
   case: (mk_mov vpk).
-  + by apply lea_ptrP.
-  case: eqP => [->|_].
-  + rewrite wrepr0 GRing.addr0.
-    by apply mov_ptrP.
-  by apply lea_ptrP.
+  - move=> [<-]. by apply lea_ptrP.
+  - case: eqP => [->|_] [<-].
+    + rewrite wrepr0 GRing.addr0. by apply mov_ptrP.
+    + by apply lea_ptrP.
 Qed.
-
-
-Definition x86_alloc_progP := alloc_progP x86_mov_ofsP.
