@@ -2,10 +2,13 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import psem x86_variables.
 Import Utf8.
 Import compiler_util x86_sem.
+Require x86_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+#[ local ] Existing Instance x86_decl.x86_pd.
 
 (* -------------------------------------------------------------------- *)
 Lemma xreg_of_varI ii x y :

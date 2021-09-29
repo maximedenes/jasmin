@@ -67,6 +67,7 @@ Qed.
 
 Section SEM.
 
+Context {pd: PointerData}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
 
 Local Notation gd := (p_globs p).

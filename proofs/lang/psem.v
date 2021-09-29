@@ -39,6 +39,16 @@ Local Open Scope Z_scope.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Notation vid ident :=
+  {|
+    v_var :=
+      {|
+        vtype := sword Uptr;
+        vname := ident;
+      |};
+    v_info := xH;
+  |}.
+
 (* ** Interpretation of types
  * -------------------------------------------------------------------- *)
 
@@ -154,7 +164,7 @@ Definition vmap0 : vmap :=
 Definition get_var (m:vmap) x :=
   on_vu (@pto_val (vtype x)) undef_error (m.[x]%vmap).
 
-Arguments get_var _%vmap_scope _.
+#[ global ] Arguments get_var _%vmap_scope _.
 
 Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
   if is_lvar x then get_var vm x.(gv)
@@ -252,6 +262,9 @@ Qed.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
+
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
 
 Record estate := Estate {
   emem : mem;
@@ -1698,7 +1711,7 @@ Definition eval_uincl (t1 t2:stype) (v1: exec (psem_t t1)) (v2: exec (psem_t t2)
 Definition vm_uincl (vm1 vm2:vmap) :=
   forall x, eval_uincl (vm1.[x])%vmap (vm2.[x])%vmap.
 
-Arguments vm_uincl _%vmap_scope _%vmap_scope.
+#[ global ] Arguments vm_uincl _%vmap_scope _%vmap_scope.
 
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.
@@ -1926,7 +1939,7 @@ Lemma vm_uincl_vmap_uincl_on dom vm1 vm2 :
   vmap_uincl_on dom vm1 vm2.
 Proof. by move => h x _; exact: h. Qed.
 
-Instance vmap_uincl_on_trans dom : Transitive (vmap_uincl_on dom).
+#[ global ] Instance vmap_uincl_on_trans dom : Transitive (vmap_uincl_on dom).
 Proof. move => x y z xy yz r hr; apply: (eval_uincl_trans (xy _ hr)); exact: yz. Qed.
 
 Lemma vmap_uincl_on_empty vm1 vm2 :
@@ -2959,14 +2972,13 @@ Qed.
 (* ** Semantic without stack 
  * -------------------------------------------------------------------- *)
 
-Instance sCP_unit : @semCallParams _ progUnit := 
+#[ global ]
+Instance sCP_unit : @semCallParams _ progUnit :=
   {| init_state := fun _ _ _ s => ok s;
      finalize   := fun _ m => m; |}.
 
 (* ** Semantic with stack 
  * -------------------------------------------------------------------- *)
-
-Notation vid ident := {|v_var := {|vtype := sword Uptr; vname := ident|}; v_info := xH|}.
 
 Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (s:estate) :=
   let m1   := s.(emem) in
@@ -2978,6 +2990,7 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
 
+#[ global ]
 Instance sCP_stack : @semCallParams _ progStack :=
   {| init_state := init_stk_state;
      finalize   := finalize_stk_mem; |}.
@@ -3100,7 +3113,7 @@ Section WF.
 
 End WF.
 
-Arguments wf_init { T pT }.
+#[ global ] Arguments wf_init { T pT }.
 
 Lemma wf_initu : wf_init sCP_unit.
 Proof. by move=> ????? [->]. Qed.
@@ -3111,4 +3124,30 @@ Proof.
   apply: wf_write_vars h1; apply wf_vmap0.
 Qed.
 
+End WITH_POINTER_DATA.
 
+
+Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+
+Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
+
+Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
+
+Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
+
+Notation "vm1 '<=[' s ']' vm2" := (vmap_uincl_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  <=[ s ]  '/'  vm2 ']'").
+
+#[ export ] Hint Resolve
+  word_uincl_refl
+  value_uincl_refl
+  val_uincl_refl
+  pval_uincl_refl
+  eval_uincl_refl
+  vm_uincl_refl
+  vmap_uincl_on_empty
+  : core.

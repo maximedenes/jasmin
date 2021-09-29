@@ -684,9 +684,14 @@ End PEXPRS_IND.
 
 Definition cast_w ws := Papp1 (Oword_of_int ws).
 
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
 Definition cast_ptr := cast_w Uptr.
 
 Definition cast_const z := cast_ptr (Pconst z).
+
+End WITH_POINTER_DATA.
 
 (* ** Left values
  * -------------------------------------------------------------------- *)
@@ -1042,7 +1047,10 @@ Notation fun_decls  := (seq fun_decl).
 (* ** Programs before stack/memory allocation 
  * -------------------------------------------------------------------- *)
 
-Instance progUnit : progT [eqType of unit] := 
+(* Priority 1 is needed so that it has the same priority as progStack, defined
+  below.
+*)
+Instance progUnit : progT [eqType of unit] | 1 :=
   {| extra_val_t := unit;
      extra_prog_t := unit;
   |}.
@@ -1144,6 +1152,10 @@ Record sprog_extra := {
   sp_globs : seq u8;
 }.
 
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
+#[ global ]
 Instance progStack : progT [eqType of stk_fun_extra] := 
   {| extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
@@ -1161,6 +1173,8 @@ Definition _sfun_decls := seq (_fun_decl  stk_fun_extra).
 Definition _sprog      := _prog stk_fun_extra sprog_extra.
 Definition to_sprog (p:_sprog) : sprog := p.
 
+End WITH_POINTER_DATA.
+
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) body := {|
   f_info   := fd.(f_info);
@@ -1172,7 +1186,7 @@ Definition with_body eft (fd:_fundef eft) body := {|
   f_extra  := fd.(f_extra);
 |}.
 
-Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
+Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_info   := fd.(f_info);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);

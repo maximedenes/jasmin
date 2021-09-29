@@ -26,10 +26,13 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import expr memory_model stack_alloc.
+Require x86_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+#[ local ] Existing Instance x86_decl.x86_pd.
 
 Definition lea_ptr x y ofs :=
   Copn [:: x] AT_none (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].

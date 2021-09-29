@@ -94,7 +94,7 @@ Qed.
 
 Section Section.
 
-Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+Context {pd: PointerData} {T:eqType} {pT:progT T} {sCP: semCallParams}.
 
 Instance live_calls_m : Proper (Sp.Equal ==> eq ==> Sp.Equal) live_calls.
 Proof.
@@ -293,7 +293,7 @@ Section PROOF.
     sem_call p' ev mem fd va mem' vr.
   Proof.
     move=> Hincl H.
-    apply: (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply: (@sem_call_Ind _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
            Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)=> //.
     move => ??; SpD.fsetdec.
   Qed.

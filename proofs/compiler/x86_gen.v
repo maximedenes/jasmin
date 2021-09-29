@@ -8,6 +8,9 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Import compiler_util.
+
+#[ local ] Existing Instance x86_decl.x86_pd.
+
 (* -------------------------------------------------------------------- *)
 
 Definition fail ii (msg: string) :=

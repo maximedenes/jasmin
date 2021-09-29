@@ -58,6 +58,7 @@ End E.
 
 Section INLINE.
 
+Context {pd: PointerData}.
 Context (inline_var: var -> bool).
 
 Definition get_flag (x:lval) flag :=

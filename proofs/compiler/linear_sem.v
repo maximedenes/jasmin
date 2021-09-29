@@ -43,6 +43,7 @@ Local Open Scope seq_scope.
 
 Section SEM.
 
+Context {pd: PointerData}.
 Variable P: lprog.
 
 Definition label_in_lcmd (body: lcmd) : seq label :=

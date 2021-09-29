@@ -38,6 +38,7 @@ Local Open Scope seq_scope.
 
 Section INLINE.
 
+Context {pd: PointerData}.
 Context (inline_var: var -> bool).
 Variable rename_fd : instr_info -> funname -> ufundef -> ufundef.
 
@@ -497,7 +498,7 @@ Section PROOF.
     move: Hdisj Hvm1;rewrite read_i_call.
     move: Htin Htout Hvs Hwv Hbody;set rfd := rename_fd _ _ => Htin Htout Hvs Hwv Hbody Hdisjoint Hvm1.
     rewrite (write_vars_lvals gd) in Hwv.
-    have [||/= vm1' Wvm1' Uvm1']:= @writes_uincl gd _ _ vm1 _ vargs0 vargs0 _ _ Hwv.
+    have [||/= vm1' Wvm1' Uvm1']:= @writes_uincl _ gd _ _ vm1 _ vargs0 vargs0 _ _ Hwv.
     + by apply wf_vm_uincl. + by apply List_Forall2_refl.
     have Uvmi : vm_uincl (evm (with_vm s1 vm1_)) vm1' by done.
     have [/=vm3 [Hsem' Uvm3]]:= sem_uincl Uvmi Hbody.
@@ -549,13 +550,13 @@ Section PROOF.
     + by apply: wf_write_lvals Hvm1; move: Hi => [<-];apply: wf_vmap0.
     + by apply: vmap_uincl_onI hsub;SvD.fsetdec.
     move=> vm2' [hwf hsvm2 hsem].
-    move: Hres; have /= <-:= @sem_pexprs_get_var gd svm2 => Hres.
+    move: Hres; have /= <-:= @sem_pexprs_get_var _ gd svm2 => Hres.
     case: svm2 Hsem Hfi Hc hsvm2 hsem Hres => emem2 evm2 Hsem Hfi Hc hsvm2 hsem Hres.
     have [vres1 hvres1 Hall1]:= sem_pexprs_uincl_on hsvm2 Hres.
     have [vres1' hvres1' Hall1'] := mapM2_truncate_val Htout Hall1.
     exists vres1';split=> //;econstructor;eauto => /=.
     + by move: Hvm1; rewrite (write_vars_lvals gd) with_vm_same.
-    by rewrite -(@sem_pexprs_get_var gd {| emem := emem2; evm := vm2' |}).
+    by rewrite -(@sem_pexprs_get_var _ gd {| emem := emem2; evm := vm2' |}).
   Qed.
 
   Lemma inline_callP f mem mem' va va' vr:
@@ -565,7 +566,7 @@ Section PROOF.
       sem_call p' ev mem f va' mem' vr' /\  List.Forall2 value_uincl vr vr'.
   Proof.
     move=> Hall Hsem.
-    apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
                Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
                mem f va mem' vr Hsem _ Hall).
   Qed.

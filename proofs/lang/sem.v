@@ -238,7 +238,7 @@ Definition sem_opN (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
-Record estate := Estate {
+Record estate {pd: PointerData} := Estate {
   emem : mem;
   evm  : vmap
 }.
@@ -304,7 +304,8 @@ Lemma type_of_get_var x vm v :
   type_of_val v = x.(vtype).
 Proof. by rewrite /get_var; apply : on_vuP => // t _ <-; apply type_of_to_val. Qed.
 
-Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v s x P:
+Lemma on_arr_varP
+  {pd: PointerData} A (f : forall n, WArray.array n -> exec A) v s x P :
   (forall n t, vtype x = sarr n ->
                get_var (evm s) x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
@@ -344,6 +345,7 @@ Definition is_defined (v: value) : bool :=
 
 Section SEM_PEXPR.
 
+Context {pd: PointerData}.
 Context (gd: glob_decls).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
@@ -456,6 +458,8 @@ Proof.
 Qed.
 
 Section SEM.
+
+Context {pd: PointerData}.
 
 Variable P:uprog.
 

@@ -337,10 +337,15 @@ Instance x86_rflag_toS : ToString sbool rflag :=
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
 
+#[ local ] Instance x86_pd : PointerData := {
+  Uptr := U64;
+}.
+
 Instance x86_decl : arch_decl register xmm_register rflag condt :=
   { reg_size  := U64
   ; xreg_size := U256
   ; toS_r     := x86_reg_toS
   ; toS_x     := x86_xreg_toS
   ; toS_f     := x86_rflag_toS
+  ; arch_pd   := x86_pd
   }.

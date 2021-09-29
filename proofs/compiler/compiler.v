@@ -29,7 +29,7 @@ Import ZArith.
 Require merge_varmaps.
 Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
    constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear tunneling x86_sem.
-Require Import x86_stack_alloc.
+Require x86_decl x86_stack_alloc.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -37,7 +37,10 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* Parameters specific to the architecture. *)
-Definition mov_ofs := x86_mov_ofs.
+Definition mov_ofs := x86_stack_alloc.x86_mov_ofs.
+Definition ptr_data := x86_decl.x86_pd.
+
+#[ local ] Existing Instance ptr_data.
 
 Instance pT : progT [eqType of unit] := progUnit.
 

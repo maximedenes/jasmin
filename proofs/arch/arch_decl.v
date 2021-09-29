@@ -54,6 +54,7 @@ Class arch_decl (reg xreg rflag cond : Type) :=
   ; toS_r     :> ToString (sword reg_size) reg
   ; toS_x     :> ToString (sword xreg_size) xreg
   ; toS_f     :> ToString sbool rflag
+  ; arch_pd   : PointerData
 }.
 
 (* FIXME ARM : Try to not use this projection *)
@@ -65,6 +66,7 @@ Definition cond_t  `{arch : arch_decl} := cond.
 Section DECL.
   
 Context `{arch : arch_decl}.
+Existing Instance arch_pd.
 
 (* -------------------------------------------------------------------- *)
 (* disp + base + scale × offset *)

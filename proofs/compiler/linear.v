@@ -118,6 +118,7 @@ End E.
 
 (* --------------------------------------------------------------------------- *)
 Section PROG.
+Context {pd: PointerData}.
 Context (p:sprog) (extra_free_registers: instr_info -> option var).
 
 (** Total size of a stack frame: local variables, extra and padding. *)

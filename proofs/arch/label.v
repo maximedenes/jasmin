@@ -39,7 +39,13 @@ Definition remote_label := (funname * label)%type.
   The encoding and decoding functions are parameterized by a domain:
   they are assumed to succeed on this domain only.
 *)
+
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
 Parameter encode_label : seq remote_label → remote_label → option pointer.
 Parameter decode_label : seq remote_label → pointer → option remote_label.
 Axiom decode_encode_label : ∀ dom lbl, obind (decode_label dom) (encode_label dom lbl) = Some lbl.
 Axiom encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
+
+End WITH_POINTER_DATA.

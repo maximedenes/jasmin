@@ -45,6 +45,7 @@ End E.
 
 Section PROG.
 
+Context {pd: PointerData}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
 
 (** Set of variables written by a function (including RA and extra registers),

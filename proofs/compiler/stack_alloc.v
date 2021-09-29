@@ -320,6 +320,9 @@ Definition sub_region_stkptr s ws z :=
   let r := {| r_slot := s; r_align := ws; r_writable := true |} in
   {| sr_region := r; sr_zone := z |}.
 
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
 Definition set_stack_ptr (rmap:region_map) s ws z (x':var) :=
   let sr := sub_region_stkptr s ws z in
   let rv := set_pure_bytes rmap x' sr (Some 0)%Z (wsize_size Uptr) in
@@ -333,6 +336,8 @@ Definition check_stack_ptr rmap s ws z x' :=
   let i := interval_of_zone z in
   let bytes := get_var_bytes rmap sr.(sr_region) x' in
   ByteSet.mem bytes i.
+
+End WITH_POINTER_DATA.
 
 (* Precondition size_of x = ws && length sr.sr_zone = wsize_size ws *)
 Definition set_word rmap (x:var_i) sr ws :=
@@ -424,12 +429,17 @@ End Region.
 
 Import Region.
 
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
 Definition mul := Papp2 (Omul (Op_w Uptr)).
 Definition add := Papp2 (Oadd (Op_w Uptr)).
 
 Definition cast_word e := 
   match e with
-  | Papp1 (Oint_of_word U64) e1 => e1
+  | Papp1 (Oint_of_word sz) e1 => if (sz == Uptr)%CMP
+                                  then e1
+                                  else cast_ptr e
   | _  => cast_ptr e
   end.
 
@@ -1203,7 +1213,7 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
           else
             if [&& (Uptr <= ws')%CMP,
                 (0%Z <= z.(z_ofs))%CMP,
-                (Z.land z.(z_ofs) (wsize_size U64 - 1) == 0)%Z,
+                (Z.land z.(z_ofs) (wsize_size Uptr - 1) == 0)%Z,
                 (wsize_size Uptr <= z.(z_len))%CMP &
                 ((z.(z_ofs) + z.(z_len))%Z <= size_slot x')%CMP] then
               ok (Sv.add xp sv, Pstkptr x' ofs' ws' z xp, rmap)
@@ -1428,3 +1438,5 @@ Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : 
      Error (stk_ierror_no_var "invalid data").
 
 End CHECK.
+
+End WITH_POINTER_DATA.

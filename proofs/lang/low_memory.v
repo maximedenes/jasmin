@@ -43,6 +43,9 @@ Module Memory := MemoryI.
 
 Notation mem := Memory.mem.
 
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
 (* -------------------------------------------------------------- *)
 Definition eq_mem m m' : Prop :=
   forall ptr sz, read m ptr sz = read m' ptr sz.
@@ -60,6 +63,7 @@ Lemma eq_mem_trans m2 m1 m3 :
 Proof. move => p q x y; rewrite (p x y); exact: (q x y). Qed.
 
 (* -------------------------------------------------------------- *)
+#[ global ]
 Instance stack_stable_equiv : Equivalence stack_stable.
 Proof.
   split.
@@ -172,3 +176,5 @@ Definition allocatable_stack (m : mem) (z : Z) :=
 Arguments allocatable_spec {_ _ _ } _ _ _.
 Parameter allocatable_stackP : forall m ws sz sz', allocatable_spec m ws sz sz'.
 *)
+
+End WITH_POINTER_DATA.

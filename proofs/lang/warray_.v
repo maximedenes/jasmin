@@ -103,6 +103,9 @@ Module WArray.
 
   Global Opaque PointerZ.
 
+  Section WITH_POINTER_DATA.
+  Context {pd: PointerData}.
+
   Lemma is_align_scale (p:pointer) ws : is_align (p * mk_scale AAscale ws)%Z ws.
   Proof. by rewrite /is_align /mk_scale /= Z_mod_mult. Qed.
 
@@ -264,7 +267,9 @@ Module WArray.
     move=> j wj; rewrite (write_read8 hw1) (write_read8 hw2) /=.
     by case:ifP => // _; apply: hu.
   Qed.
- 
+
+  End WITH_POINTER_DATA.
+
   Lemma castK len (a:array len) : WArray.cast len a = ok a.
   Proof. by rewrite /cast Z.leb_refl; case: a. Qed.
 

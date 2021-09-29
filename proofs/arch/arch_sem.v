@@ -93,6 +93,7 @@ Notation rflagmap := RflagMap.map.
 Section SEM.
 
 Context `{asm_d : asm}.
+Existing Instance arch_pd.
 
 Record asmmem : Type := AsmMem {
   asm_rip  : pointer;

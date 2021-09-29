@@ -180,15 +180,16 @@ Local Open Scope seq_scope.
 
 
 Section SemInversion.
+Context {pd: PointerData}.
 Context (T : eqType) (pT : progT T) (cs : semCallParams).
 Context (p : prog) (ev : extra_val_t).
 
 Derive Inversion_clear sem_nilI
-  with (forall s1 s2,  @sem T pT cs p ev s1 [::] s2)
+  with (forall s1 s2,  @sem pd T pT cs p ev s1 [::] s2)
   Sort Prop.
 
 Derive Inversion_clear sem_consI
-  with (forall s1 i c s2,  @sem T pT cs p ev s1 (i :: c) s2)
+  with (forall s1 i c s2,  @sem pd T pT cs p ev s1 (i :: c) s2)
   Sort Prop.
 
 Lemma set_var_rename (vm vm' vm'' : vmap) (x y : var) (v : value) :
@@ -207,15 +208,16 @@ Qed.
 Section SemInversionSeq1.
   Context (s1 : estate) (i : instr) (s2 : estate).
   Context
-    (P : ∀ (T : eqType) (pT : progT T),
+    (P : ∀ {pd: PointerData} (T : eqType) (pT : progT T),
            semCallParams → prog -> extra_val_t -> estate -> instr -> estate -> Prop).
 
   Hypothesis Hi :
-    (sem_I p ev s1 i s2 -> @P T pT cs p ev s1 i s2).
+    (sem_I p ev s1 i s2 -> @P pd T pT cs p ev s1 i s2).
 
-  Lemma sem_seq1I : sem p ev s1 [:: i] s2 → @P T pT cs p ev s1 i s2.
+  Lemma sem_seq1I : sem p ev s1 [:: i] s2 → @P pd T pT cs p ev s1 i s2.
   Proof.
-  by elim/sem_consI=> s hs h_nil; elim/sem_nilI: h_nil hs => /Hi.
+    elim/sem_consI=> s hs h_nil.
+    elim/sem_nilI: h_nil hs => /Hi.
   Qed.
 End SemInversionSeq1.
 End SemInversion.
