@@ -1,6 +1,6 @@
 (*
 *)
-Require Import psem x86_variables.
+Require Import psem x86_decl x86_variables.
 Import Utf8.
 Import all_ssreflect.
 Import var.

@@ -28,6 +28,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import psem compiler_util.
 Require Export dead_code.
 Import Utf8.
+Require Import x86_decl x86_instr_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

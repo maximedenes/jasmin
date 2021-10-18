@@ -1,6 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ssrring.
 Require Import low_memory psem x86_sem compiler_util lowering lowering_proof x86_variables_proofs asmgen.
+Require Import x86_decl x86_instr_decl.
 
 Import Utf8.
 Import GRing.

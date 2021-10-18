@@ -28,7 +28,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import ZArith psem compiler_util.
+Require Import ZArith psem compiler_util x86_instr_decl.
 Require Export lowering.
 Import Utf8.
 Import Psatz.

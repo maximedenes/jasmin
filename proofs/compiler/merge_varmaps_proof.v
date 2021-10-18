@@ -4,7 +4,7 @@ Require Import sem_one_varmap sem_one_varmap_facts merge_varmaps psem_facts.
 Import Utf8.
 Import all_ssreflect all_algebra.
 Import ssrZ.
-Import psem x86_variables.
+Require Import psem x86_decl x86_variables.
 Import compiler_util.
 
 Set Implicit Arguments.

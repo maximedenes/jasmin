@@ -26,6 +26,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import expr memory_model stack_alloc.
+Require Import x86_decl x86_instr_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -37,7 +37,7 @@ Require sem_one_varmap_facts.
 Import ssrZ.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
 Require Export linear linear_sem.
-Import x86_variables.
+Require Import x86_decl x86_instr_decl x86_variables.
 Import Memory.
 
 Set Implicit Arguments.

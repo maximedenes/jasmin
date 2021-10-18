@@ -31,7 +31,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import psem compiler_util label linear.
+Require Import psem compiler_util label linear x86_instr_decl.
 
 Import Memory.
 

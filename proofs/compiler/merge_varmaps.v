@@ -1,6 +1,6 @@
 (*
 *)
-Require Import psem sem_one_varmap.
+Require Import psem sem_one_varmap x86_decl.
 Import Utf8.
 Import all_ssreflect.
 Import var compiler_util.

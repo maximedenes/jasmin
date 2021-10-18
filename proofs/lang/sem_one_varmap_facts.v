@@ -5,6 +5,7 @@ Import Utf8.
 Import all_ssreflect.
 Import low_memory.
 Import psem psem_facts sem_one_varmap.
+Require Import x86_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
