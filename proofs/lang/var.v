@@ -529,6 +529,33 @@ Lemma in_disjoint_diff x a b c :
   Sv.In x c.
 Proof. rewrite /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
 
+(* ---------------------------------------------------------------- *)
+Lemma Sv_mem_add (s: Sv.t) (x y: var) :
+  Sv.mem x (Sv.add y s) = (x == y) || Sv.mem x s.
+Proof.
+  case: eqP.
+  - move => <-; exact: SvP.add_mem_1.
+  move => ne; exact: (SvD.F.add_neq_b _ (not_eq_sym ne)).
+Qed.
+
+(* ---------------------------------------------------------------- *)
+Definition sv_of_list T (f: T → var) : seq T → Sv.t :=
+  foldl (λ s r, Sv.add (f r) s) Sv.empty.
+
+Lemma sv_of_listE T (f: T → var) x m :
+  Sv.mem x (sv_of_list f m) = (x \in map f m).
+Proof.
+  suff h : forall s, Sv.mem x (foldl (λ (s : Sv.t) (r : T), Sv.add (f r) s) s m) = (x \in map f m) || Sv.mem x s by rewrite h orbF.
+  elim: m => //= z m hrec s.
+  rewrite hrec in_cons SvD.F.add_b /SvD.F.eqb.
+  case: SvD.F.eq_dec => [-> | /eqP]; first by rewrite eqxx /= orbT.
+  by rewrite eq_sym => /negbTE ->.
+Qed.
+
+Lemma sv_of_listP T (f: T → var) x m :
+  reflect (Sv.In x (sv_of_list f m)) (x \in map f m).
+Proof. rewrite -sv_of_listE; apply Sv_memP. Qed.
+
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.
 
