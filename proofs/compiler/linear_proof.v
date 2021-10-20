@@ -518,6 +518,7 @@ Section PROOF.
 
   Let vgd : var := vid p.(p_extra).(sp_rip).
   Let vrsp : var := vid p.(p_extra).(sp_rsp).
+  Let vtmp : var := var_of_register RAX.
 
   Hypothesis linear_ok : linear_prog p extra_free_registers = ok p'.
 
@@ -1019,7 +1020,7 @@ Section PROOF.
       match_mem s1 m1 →
       vm_uincl
         match ra with
-        | RAnone => s1.[var_of_register RAX <- undef_error]
+        | RAnone => s1.[vtmp <- undef_error]
         | RAreg x => s1.[x <- undef_error]
         | RAstack _ => s1
         end.[vrsp <- ok (pword_of_word sp)]%vmap vm1 →
@@ -1063,7 +1064,7 @@ Section PROOF.
     move => s1 fn lbl _ m1 vm1 P Q M X D C; rewrite cats0; exists m1 vm1 => //; exact: rt_refl.
   Qed.
 
-  Local Lemma Hcons : sem_Ind_cons p extra_free_registers Pc Pi.
+  Local Lemma Hcons : sem_Ind_cons p extra_free_registers vtmp Pc Pi.
   Proof.
     move => ki kc s1 s2 s3 i c exec_i hi _ hc.
     move => fn lbl /checked_cI[] chk_i chk_c /=.
@@ -1096,7 +1097,7 @@ Section PROOF.
     all: SvD.fsetdec.
   Qed.
 
-  Local Lemma HmkI : sem_Ind_mkI p extra_free_registers Pi Pi_r.
+  Local Lemma HmkI : sem_Ind_mkI p extra_free_registers vtmp Pi Pi_r.
   Proof.
     move => ii k i s1 s2 ok_fr _ h _ fn lbl chk.
     move: h => /(_ fn lbl chk); case: linear_i (valid_i fn (MkI ii i) lbl) => lbli li [L V] S.
@@ -1109,7 +1110,10 @@ Section PROOF.
       | None => True
       end.
     + rewrite /kill_extra_register /kill_extra_register_vmap.
-      case: extra_free_registers ok_fr => // fr /and3P [] /eqP hrip /eqP hrsp /eqP hty; split => //=.
+      rewrite /efr_valid in ok_fr.
+      case: extra_free_registers ok_fr => // fr.
+      rewrite -Bool.andb_assoc.
+      move=> /and3P [] /eqP hrip /eqP hrsp /eqP hty; split => //=.
       rewrite /=; case heq: s1.[fr]%vmap (W fr) (X fr) => [vfr | efr /=].
       + by move=> _ _;rewrite Fv.setP_eq hty.
       rewrite heq; case: vm1.[fr]%vmap.
@@ -1207,7 +1211,7 @@ Section PROOF.
     eval_jump p' (fn, lbl) s = Let pc := find_label lbl body in ok (setcpc s fn pc.+1).
   Proof. by case => ? /= -> ->. Qed.
 
-  Local Lemma Hif_true : sem_Ind_if_true p extra_free_registers Pc Pi_r.
+  Local Lemma Hif_true : sem_Ind_if_true p extra_free_registers vtmp Pc Pi_r.
   Proof.
     move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E1 Hc1 fn lbl /checked_iE[] fd ok_fd /=; apply: rbindP => -[] chk_c1 _.
     case: c1 E1 Hc1 chk_c1 => [ | i1 c1 ] E1 Hc1 chk_c1; last case: c2 => [ | i2 c2 ].
@@ -1278,7 +1282,7 @@ Section PROOF.
     by rewrite /P' /Q' -!catA /= -!catA; repeat rewrite !size_cat /=; rewrite !addnS !addn0.
   Qed.
 
-  Local Lemma Hif_false : sem_Ind_if_false p extra_free_registers Pc Pi_r.
+  Local Lemma Hif_false : sem_Ind_if_false p extra_free_registers vtmp Pc Pi_r.
   Proof.
     move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E2 Hc2 fn lbl /checked_iE[] fd ok_fd /=; apply: rbindP => -[] _ chk_c2.
     case: c1 => [ | i1 c1 ]; last case: c2 E2 Hc2 chk_c2 => [ | i2 c2 ].
@@ -1349,10 +1353,10 @@ Section PROOF.
     by rewrite find_labelE /is_label /= eqxx /= /setcpc /Q' !size_cat /= size_cat /= size_cat /= !addnS !addnA.
   Qed.
 
-  Local Lemma Hwhile_true : sem_Ind_while_true p extra_free_registers Pc Pi_r.
+  Local Lemma Hwhile_true : sem_Ind_while_true p extra_free_registers vtmp Pc Pi_r.
   Proof. Admitted.
 
-  Local Lemma Hwhile_false : sem_Ind_while_false p extra_free_registers Pc Pi_r.
+  Local Lemma Hwhile_false : sem_Ind_while_false p extra_free_registers vtmp Pc Pi_r.
   Proof. Admitted.
 
   Lemma find_entry_label fn fd :
@@ -1360,7 +1364,7 @@ Section PROOF.
     find_label xH (lfd_body (linear_fd p extra_free_registers fn fd)) = ok 0.
   Proof. by rewrite /linear_fd; case: sf_return_address. Qed.
 
-  Local Lemma Hcall : sem_Ind_call p extra_free_registers Pi_r Pfun.
+  Local Lemma Hcall : sem_Ind_call p extra_free_registers vtmp Pi_r Pfun.
   Proof.
     move => ii k s1 s2 ini res fn' args xargs xres ok_xargs ok_xres exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
     case linear_eq: linear_i => [lbli li].
@@ -1385,6 +1389,9 @@ Section PROOF.
       1-2: by case => _ <- _; rewrite /label_in_lcmd !pmap_cat /= !mem_cat inE eqxx !orbT.
     case ok_ptr: encode_label (encode_label_dom lbl_valid) => [ ptr | // ] _.
     case/sem_callE: (exec_call) => ? m s' k'; rewrite ok_fd' => /Some_inj <- ra_sem ok_ss sp_aligned T ok_m exec_cbody T' s2_eq.
+    rewrite /ra_valid in ra_sem.
+    rewrite /top_stack_aligned in sp_aligned.
+    rewrite /ra_vm.
     case ra_eq: (sf_return_address _) ok_ra ok_ret_addr ra_sem sp_aligned A => [ // | ra | z ] ok_ra ok_ret_addr ra_sem sp_aligned /=.
     { (* Internal function, return address in register [ra]. *)
       have ok_ra_of : is_ra_of fn' (RAreg ra) by rewrite /is_ra_of; exists fd'; assumption.
@@ -1435,7 +1442,7 @@ Section PROOF.
           rewrite /lfd' find_entry_label; last by rewrite ra_eq.
           by rewrite /setcpc /=.
         + rewrite size_cat addn3; exact: exec_fn'.
-        + rewrite -K' /vm => x x_notin_k.
+        + rewrite -K' /vm /saved_stack_vm => x x_notin_k.
           rewrite Fv.setP_neq //.
           apply/eqP; clear -x_notin_k.
           SvD.fsetdec.
@@ -1798,7 +1805,7 @@ Section PROOF.
     by rewrite pword_of_wordE zero_extend_u.
   Qed.
 
-  Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
+  Local Lemma Hproc : sem_Ind_proc p extra_free_registers vtmp Pc Pfun.
   Proof.
     red => ii k s1 _ fn fd m1' s2' ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp callee_saved W M X [] fd' ok_fd' <- [].
     rewrite ok_fd => _ /Some_inj <- ?; subst ra.
@@ -1813,7 +1820,13 @@ Section PROOF.
       by rewrite /get_fundef assoc_map2 => -> [].
     subst fd'.
     move: ok_fd'; rewrite /linear_fd.
+    rewrite /ra_valid in free_ra.
     rewrite /check_to_save in ok_to_save.
+    rewrite /ra_undef_vm in exec_body.
+    rewrite /ra_undef_vm in ih.
+    rewrite /saved_stack_valid in ok_ss.
+    rewrite /ra_vm.
+    rewrite /saved_stack_vm.
     case: sf_return_address free_ra ok_to_save ok_callee_saved ok_save_stack ok_ret_addr X ok_lret exec_body ih ok_sp =>
       /= [ rax_not_magic ok_to_save ok_callee_saved ok_save_stack _ | ra free_ra _ _ _ ok_ret_addr | rastack free_ra _ _ _ ok_ret_addr ] X ok_lret exec_body ih.
     2-3: case => sp_aligned.
@@ -1836,7 +1849,9 @@ Section PROOF.
           rewrite top_stack_after_aligned_alloc.
           2: exact: is_align8.
           by rewrite stk_sz_0 stk_extra_sz_0 -addE add_0.
-        have X' : vm_uincl (set_RSP p m1' (kill_flags s1 rflags).[var_of_register RAX <- undef_error]) vm1.
+        have X' :
+          let vm := kill_flags s1 rflags in
+          vm_uincl (set_RSP p m1' vm.[vtmp <- undef_error]) vm1.
         + rewrite /set_RSP top_stack_preserved.
           apply: vm_uincl_trans X.
           apply: set_vm_uincl; last exact: eval_uincl_refl.
@@ -1917,14 +1932,17 @@ Section PROOF.
         set vm' := ((((((vm.[var_of_flag OF <- ok false]).[var_of_flag CF <- ok false]).[var_of_flag SF <- ok (SF_of_word rsp')]).[var_of_flag PF <- ok (PF_of_word rsp')]).[var_of_flag ZF <- ok (ZF_of_word rsp')]).[vrsp <- ok (pword_of_word rsp')])%vmap.
         have wf_vm' : wf_vm vm'.
         + repeat apply: wf_vm_set; exact: ok_vm.
-        have X' : vm_uincl (set_RSP p m1' (kill_flags s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap rflags).[var_of_register RAX <- undef_error]) vm'.
+        have X' :
+          let vm0 := s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap in
+          let vm1 := kill_flags vm0 rflags in
+          vm_uincl (set_RSP p m1' vm1.[vtmp <- undef_error]) vm'.
         + rewrite /set_RSP /vm' => x.
           move: (X x) (W x).
           rewrite !Fv.setP; case: eqP => x_rsp; first by subst.
           case: eqP => x_rax.
           * subst.
             repeat case: eqP => // *.
-            move: (ok_vm (var_of_register RAX)).
+            move: (ok_vm vtmp).
             by case: _.[_]%vmap => // - [].
           rewrite kill_flagsE !inE !(eq_sym x).
           do 5 (
@@ -2189,10 +2207,10 @@ Section PROOF.
   Admitted.
 
   Lemma linear_fdP ii k s1 fn s2 :
-    sem_call p extra_free_registers ii k s1 fn s2 →
+    sem_call p extra_free_registers vtmp ii k s1 fn s2 →
     Pfun ii k s1 fn s2.
   Proof.
-    exact: (@sem_call_Ind p extra_free_registers Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
+    exact: (@sem_call_Ind p extra_free_registers vtmp Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
   Qed.
 
   (*
