@@ -659,7 +659,7 @@ Section LEMMA.
       | RAnone =>
         [/\
          ¬Sv.In vtmp (magic_variables p) &
-         all (λ x : var_i, if vtype x is sword _ then true else false) (f_params fd)
+         all (λ x : var_i, isSome (is_word_type (vtype x))) (f_params fd)
         ]
       end.
     - case: sf_return_address checked_ra; last by [].

@@ -31,7 +31,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import psem compiler_util label linear x86_instr_decl.
+Require Import psem compiler_util label linear.
 
 Import Memory.
 
@@ -63,7 +63,7 @@ Record lstate := Lstate
     lpc  : nat; }.
 
 Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
-Definition of_estate (s:estate) pc := Lstate s.(emem) s.(evm) pc.
+Definition of_estate (s:estate) fn pc := Lstate s.(emem) s.(evm) fn pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
 Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
 Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
@@ -81,6 +81,8 @@ A maximal execution (i.e., terminated without error) is caracterized by the fact
 the reached state has no instruction left to execute.
 *)
 Section LSEM.
+
+Context (lparams: linear_params).
 
 Definition eval_jump d s :=
   let: (fn, lbl) := d in
@@ -106,9 +108,13 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
       eval_jump d s1
     else type_error
   | LstoreLabel x lbl =>
-    if encode_label labels (lfn s1, lbl) is Some p then
-      Let s2 := sem_sopn [::]  (Ox86 (LEA Uptr)) (to_estate s1) [:: x ] [:: wconst p ] in
-      ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+    if encode_label labels (lfn s1, lbl) is Some p
+    then match is_lopn (lparams.(lp_lassign) x Uptr (wconst p)) with
+         | Some (lvs, op, ps) =>
+           Let s2 := sem_sopn [::] op (to_estate s1) lvs ps in
+           ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+         | None => type_error (* Absurd case: lassign is always Lopn. *)
+         end
     else type_error
   | Lcond e lbl =>
     Let b := sem_pexpr [::] (to_estate s1) e >>= to_bool in

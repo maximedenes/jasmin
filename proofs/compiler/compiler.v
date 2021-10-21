@@ -29,7 +29,7 @@ Import ZArith.
 Require merge_varmaps.
 Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
    constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear tunneling x86_sem.
-Require Import x86_stack_alloc.
+Require Import x86_stack_alloc x86_linear.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -38,6 +38,7 @@ Unset Printing Implicit Defensive.
 
 (* Parameters specific to the architecture. *)
 Definition mov_ofs := x86_mov_ofs.
+Definition lparams := x86_linear_params.
 
 Instance pT : progT [eqType of unit] := progUnit.
 
@@ -268,7 +269,7 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
 
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in
-  Let pl := linear_prog pd cparams.(extra_free_registers) in
+  Let pl := linear_prog pd cparams.(extra_free_registers) lparams in
   let pl := cparams.(print_linear) pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
