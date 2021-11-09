@@ -26,7 +26,7 @@ export fn verify_mod_const(reg u64 a, reg u64 b) -> reg u64 {
   dividend = #LEA(b_lzb_m1 + a);
 
   b_lzb = b_lzb_m1 << 1;
-  _, cf, _, _, _, temp2 = #ADD_64(b_lzb, a);
+  cf, temp2 = b_lzb + a;
   dividend = temp2 if !cf;
 
   dividend = a if flag == 1;
