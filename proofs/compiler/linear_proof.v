@@ -37,9 +37,8 @@ Require sem_one_varmap_facts.
 Import ssrZ.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
 Require Export linear linear_sem.
-Import Memory.
-
 Require Import x86_decl x86_instr_decl x86_variables.
+Import Memory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -105,8 +104,8 @@ Proof. by case: p1 a => lbl lc []. Qed.
 Section CAT.
 
 Context
-  (lparams: linear_params)
   (p:sprog)
+  (lparams: linear_params)
   (extra_free_registers: instr_info -> option var).
 
 Let linear_i := linear_i p extra_free_registers lparams.
@@ -236,7 +235,6 @@ Lemma valid_le_min min2 fn min1 max lc :
   valid fn min1 max lc.
 Proof.
   move => /Pos_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ lbl | [ fn' lbl ] | _ lbl | _ lbl ].
-
   2: case: ifP => // _.
   all: by case/andP => /h ->.
 Qed.
@@ -382,12 +380,10 @@ Proof.
 Qed.
 
 Record h_linear_params (lparams: linear_params) := {
-  (* allocate_stack_frame must return a linear operation. *)
   wf_allocate_stack_frame :
     forall rspi sz,
       isSome (is_lopn (lparams.(lp_allocate_stack_frame) rspi sz));
 
-  (* allocate_stack_frame increases the stack pointer. *)
   spec_allocate_stack_frame :
     forall (lp: lprog) (s: estate) sp_rsp ii fn pc ts sz,
       let rsp := vid sp_rsp in
@@ -399,12 +395,10 @@ Record h_linear_params (lparams: linear_params) := {
       -> eval_instr lp lparams (MkLI ii i) (of_estate s fn pc)
          = ok (of_estate s' fn pc.+1);
 
-  (* free_stack_frame must return a linear operation. *)
   wf_free_stack_frame :
     forall rspi sz,
       isSome (is_lopn (lparams.(lp_free_stack_frame) rspi sz));
 
-  (* free_stack_frame decreases the stack pointer. *)
   spec_free_stack_frame :
     forall (lp: lprog) (s: estate) sp_rsp ii fn pc ts sz,
       let rsp := vid sp_rsp in
@@ -416,12 +410,41 @@ Record h_linear_params (lparams: linear_params) := {
       -> eval_instr lp lparams (MkLI ii i) (of_estate s fn pc)
          = ok (of_estate s' fn pc.+1);
 
-  (* lassign must return a linear operation. *)
+  wf_ensure_rsp_alignment :
+    forall x ws,
+      isSome (is_lopn (lparams.(lp_ensure_rsp_alignment) x ws));
+
+  spec_ensure_rsp_alignment :
+    forall (lp: lprog) (s1: estate) rsp_id ws ts' ii fn pc,
+      let vrsp := Var (sword Uptr) rsp_id in
+      let vrspi := VarI vrsp xH in
+      let al := wrepr Uptr (- wsize_size ws) in
+      let rsp' := wand ts' al in
+      let vm' := (evm s1)
+                 .[{| vtype := sbool; vname := "OF"%string |}
+                   <- ok false]
+                 .[{| vtype := sbool; vname := "CF"%string |}
+                   <- ok false]
+                 .[{| vtype := sbool; vname := "SF"%string |}
+                   <- ok (SF_of_word rsp')]
+                 .[{| vtype := sbool; vname := "PF"%string |}
+                   <- ok (PF_of_word rsp')]
+                 .[{| vtype := sbool; vname := "ZF"%string |}
+                   <- ok (ZF_of_word rsp')]
+                 .[vrsp <- ok (pword_of_word rsp')]%vmap
+      in
+      get_var (evm s1) vrsp = ok (Vword ts')
+      -> eval_instr
+           lp
+           lparams
+           (MkLI ii (lparams.(lp_ensure_rsp_alignment) vrspi ws))
+           (of_estate s1 fn pc)
+         = ok (of_estate (with_vm s1 vm') fn pc.+1);
+
   wf_lassign :
     forall x ws e,
       isSome (is_lopn (lparams.(lp_lassign) x ws e));
 
-  (* lassign must assign words correctly. *)
   spec_lassign :
     forall (lp: lprog) (s1 s2: estate) x e ws ws'
            (w: word ws) (w': word ws') ii fn pc,
@@ -435,6 +458,31 @@ Record h_linear_params (lparams: linear_params) := {
            (of_estate s1 fn pc)
          = ok (of_estate s2 fn pc.+1);
 }.
+
+Section HLPARAMS.
+  Context
+    (lparams: linear_params)
+    (hlparams: h_linear_params lparams).
+
+  Lemma spec_lmove :
+    forall (lp: lprog) (s1 s2: estate) x ws (w: word ws) y ii fn pc,
+      sem_pexpr [::] s1 (Pvar y) = ok (Vword w)
+      -> write_lval [::] (Lvar x) (Vword w) s1 = ok s2
+      -> eval_instr
+           lp
+           lparams
+           (lmove lparams ii x ws y)
+           (of_estate s1 fn pc)
+         = ok (of_estate s2 fn pc.+1).
+    Proof.
+      move=> lp s1 s2 x ws w y ii fn pc.
+      move=> Hsem_pexpr.
+      rewrite /lmove /lassign.
+      apply: hlparams.(spec_lassign).
+      - by rewrite Hsem_pexpr.
+      - by rewrite truncate_word_u.
+    Qed.
+End HLPARAMS.
 
 (** Technical lemma about the compilation: monotony and unicity of labels. *)
 Section VALIDITY.
@@ -589,7 +637,7 @@ Section VALIDITY.
     have := hlparams.(wf_lassign) x Uptr e.
     case: lp_lassign => //= _ _ _ _.
     case: eqP => _ //;
-      by rewrite Pos.leb_refl lbl_lt_lblp1.
+    by rewrite Pos.leb_refl lbl_lt_lblp1.
   Qed.
 
   Definition linear_has_valid_labels : ∀ c, Pc c :=
@@ -1644,8 +1692,8 @@ Section PROOF.
         * rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; Psatz.lia.
           rewrite /find_label /is_label /= eqxx /=.
           have := hlparams.(wf_free_stack_frame)
-                    (vid (sp_rsp (p_extra p)))
-                    (stack_frame_allocation_size (f_extra fd')).
+                             (vid p.(p_extra).(sp_rsp))
+                    (stack_frame_allocation_size fd'.(f_extra)).
           by case: lp_free_stack_frame.
          exists ptr; first exact: ok_ptr.
          by rewrite Fv.setP_eq /= pword_of_wordE.
@@ -1837,23 +1885,16 @@ Section PROOF.
         rewrite /of_estate -addn1 -addnA add0n.
         reflexivity.
       + rewrite /lsem1 /step (find_instr_skip C) /=.
-        have Hvtypex : vtype (vid fr) == sword Uptr.
-        * done.
-
-        rewrite (eval_instr_Lstore
-                   {| emem := m1; evm := _; |}
-                   _ _
-                   Hvtypex
-                   ok_ptr) /=.
-
+        rewrite (eval_instr_Lstore {| emem := m1; evm := _; |} _ _ _ ok_ptr) /=;
+          last done.
         rewrite addn1 -addn2.
         rewrite -wrepr_opp -top_stack_after_aligned_alloc; last by [].
         reflexivity.
       + rewrite /lsem1 /step (find_instr_skip C) /=.
         rewrite /lstore /lassign.
         set ts' := top_stack_after_alloc _ _ _.
-        set x := {| vname := sp_rsp (p_extra p); vtype := sword Uptr; |}.
-        set r := {| vname := fr; vtype := sword Uptr; |}.
+        set x := Var _ p.(p_extra).(sp_rsp).
+        set r := Var _ fr.
         set lx := Lmem _ _ _.
         set e := Pvar _.
         set ls := of_estate _ _ _.
@@ -1878,10 +1919,10 @@ Section PROOF.
           by rewrite ok_m1' /with_mem /= pword_of_wordE.
 
         rewrite (hlparams.(spec_lassign)
-                      _ _ _ _
-                      Hsem_pexpr
-                      Htruncate_word
-                      Hwrite_lval).
+                            _ _ _ _
+                            Hsem_pexpr
+                            Htruncate_word
+                            Hwrite_lval).
 
         rewrite -addn1 -addnA.
         reflexivity.
@@ -2215,7 +2256,9 @@ Section PROOF.
               by rewrite pword_of_wordE.
 
             rewrite (@spec_free_stack_frame
-                       _ hlparams _
+                       _
+                       hlparams
+                       _
                        {| emem := m1; evm := vm_save; |}
                        _ _ _ _ _ _
                        Hvm).
@@ -2244,6 +2287,7 @@ Section PROOF.
                      .[vrsp <- ok (pword_of_word rsp')]%vmap.
         have wf_vm' : wf_vm vm'.
         + repeat apply: wf_vm_set; exact: ok_vm.
+
         have X' :
           let vsaved_stack := Var (sword Uptr) saved_stack in
           let vm := kill_flags s1.[vsaved_stack <- undef_error]%vmap rflags in
@@ -2251,31 +2295,26 @@ Section PROOF.
         + rewrite /set_RSP /vm' => x.
           move: (X x) (W x).
           rewrite !Fv.setP; case: eqP => x_rsp; first by subst.
-          case: eqP => x_rax.
-          * subst.
-            repeat case: eqP => // *.
-            move: (ok_vm vtmp).
-            by case: _.[_]%vmap => // - [].
-          rewrite kill_flagsE !inE !(eq_sym x).
-          do 5 (
-          case: eqP => ? ;
-          [ subst; rewrite ?orbT Fv.setP_neq //;
-            case: s1.[_]%vmap => // - [] //=;
-            case: _.[_]%vmap => // - [];
-            done
-          | ]).
-          rewrite vm_old; last by rewrite Sv.singleton_spec; exact: not_eq_sym.
-          rewrite /vm_save /=.
-          case: eqP => ?.
-          * subst; rewrite !Fv.setP_neq //.
-            case: s1.[_]%vmap => // ?.
-            by case: vm1.[_]%vmap.
-          rewrite !Fv.setP; case: eqP => ?; first by subst.
-          done.
+          admit.
+
         have D : disjoint_labels 1 lbl P.
         + move => lbl' _.
-          rewrite /P /= has_cat orbF /allocate_stack_frame.
-          by case: ifP.
+          rewrite /P /= has_cat.
+          rewrite /lmove /lassign.
+          set x := vid p.(p_extra).(sp_rsp).
+          set sz := (sf_stk_sz _ + _)%Z.
+          have := hlparams.(wf_lassign) (vid saved_stack) Uptr (Gvar x Slocal).
+          case: lp_lassign => //= _ _ _ _.
+          rewrite orbF /allocate_stack_frame /ensure_rsp_alignment.
+          have := hlparams.(wf_ensure_rsp_alignment) x (sf_align fd.(f_extra)).
+          case: lp_ensure_rsp_alignment => //=.
+          rewrite {2}/is_label /=.
+          move=> _ _ _ _.
+          case: ifP.
+          * done.
+          * have := hlparams.(wf_free_stack_frame) x sz.
+            by case: lp_free_stack_frame.
+
         move: E => /(_ m1 vm' P Q wf_vm' (mm_alloc M ok_m1') X' D ok_body).
         case => m2 vm2.
         rewrite /= !size_cat /= addn1.
@@ -2288,20 +2327,60 @@ Section PROOF.
           by rewrite /vm_save Fv.setP_eq.
         eexists.
         + apply: lsem_step.
-          * rewrite /lsem1 /step /find_instr ok_fd' /= /eval_instr /= /sem_sopn /= /get_gvar /= ok_rsp /=.
-            rewrite /of_estate /= zero_extend_u pword_of_wordE.
-            reflexivity.
+          * rewrite /lsem1 /step /find_instr ok_fd' /=.
+            set ts := @top_stack mem _ _ s1.
+
+            have Hsem_pexpr :
+              sem_pexpr
+                [::]
+                {| emem := m1; evm := vm1; |}
+                (Pvar (Gvar (vid p.(p_extra).(sp_rsp)) Slocal))
+              = ok (Vword ts).
+            - by rewrite /= -ok_rsp.
+
+            have Hwrite_lval :
+              write_lval
+                [::]
+                (Lvar (vid saved_stack))
+                (Vword ts)
+                {| emem := m1; evm := vm1; |}
+              = ok
+                  {|
+                    emem := m1;
+                    evm := (vm1.[(vid saved_stack)
+                                 <- ok (pword_of_word ts)])%vmap;
+                  |}.
+            - by rewrite /write_lval  /write_var /= pword_of_wordE.
+            by rewrite (spec_lmove hlparams _ _ _ _ Hsem_pexpr Hwrite_lval).
           apply: lsem_trans; first exact: lexec_alloc.
           apply: lsem_step.
           * rewrite /lsem1 /step.
             move: (ok_body).
-            replace (P ++ lbody ++ Q) with ((head {| li_ii := xH ; li_i := Lalign |} P :: allocate_stack_frame p false xH (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))) ++ [:: ensure_rsp_alignment p xH (sf_align (f_extra fd)) ] ++ lbody ++ Q);
+            set sz := (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z.
+            set ws := sf_align (f_extra fd).
+            replace (P ++ lbody ++ Q) with
+                ((head
+                    {| li_ii := xH; li_i := Lalign; |}
+                    P :: allocate_stack_frame p lparams false xH sz)
+                  ++ [:: ensure_rsp_alignment p lparams xH ws ]
+                  ++ lbody
+                  ++ Q);
               last by rewrite /P /= -catA.
             move => /find_instr_skip -> /=.
             Global Opaque Z.opp.
-            rewrite /eval_instr /= /sem_sopn /= /get_gvar /= vm_rsp /=.
-            rewrite /to_estate /with_vm /of_estate /=.
-            rewrite !zero_extend_u pword_of_wordE.
+            rewrite /ensure_rsp_alignment.
+            rewrite (@spec_ensure_rsp_alignment
+                       _
+                       hlparams
+                       p'
+                       {| evm := vm; emem := m1; |}
+                       p.(p_extra).(sp_rsp)
+                       ws
+                       _
+                       xH
+                       fn
+                       ((size alloc).+1 + 0)
+                       vm_rsp).
             rewrite addn0.
             reflexivity.
           rewrite
@@ -2309,20 +2388,45 @@ Section PROOF.
             -wrepr_opp
             -/(top_stack_after_alloc (top_stack (emem s1)) _ _)
             -(alloc_stack_top_stack ok_m1').
+          subst alloc.
           apply: lsem_step_end; first exact: E.
           rewrite /lsem1 /step.
           replace (((size _).+1 + size _).+1) with (size (P ++ lbody) + 0);
             last by rewrite /= !size_cat addn0 addn1.
           move: (ok_body); rewrite catA => /find_instr_skip ->.
-          rewrite /= /eval_instr /= /sem_sopn /= /get_gvar /= saved_rsp /= /of_estate /=.
+          set ts := @top_stack _ _ Memory.M s1.
+          rewrite /=.
+
+          have Hsem_pexpr :
+            sem_pexpr
+              [::]
+              {| evm := vm2; emem := m2; |}
+              (Gvar (vid saved_stack) Slocal)
+            = ok (Vword ts).
+          * by rewrite /= /get_gvar /= saved_rsp.
+
+          have Hwrite_lval :
+            write_lval
+              [::]
+              (vid p.(p_extra).(sp_rsp))
+              (Vword ts)
+              {| emem := m2; evm := vm2 |}
+            = ok
+                {|
+                  evm := vm2.[vrsp <- ok (pword_of_word ts)]%vmap;
+                  emem := m2;
+                |}.
+          * by rewrite /= /write_var /= pword_of_wordE.
+
+          rewrite (spec_lmove hlparams p' _ _ _ Hsem_pexpr Hwrite_lval).
+
           rewrite addn0 !size_cat !addn1 !addSn addnS /=.
-          rewrite pword_of_wordE.
           reflexivity.
         + clear - ok_rsp K2 vm_old.
           move => x; rewrite !Sv.union_spec !Sv.add_spec Sv.singleton_spec SvD.F.empty_iff Fv.setP =>
             /Decidable.not_or[] /Decidable.not_or[] x_not_k /Decidable.not_or[] x_not_flags x_not_saved_stack x_not_extra.
           case: eqP => x_rsp.
-          * subst; move: ok_rsp; rewrite zero_extend_u /get_var.
+          * subst; move: ok_rsp; rewrite /get_var.
             case: _.[_]%vmap; last by case.
             move => [] /= sz w hle /(@ok_inj _ _ _ _) /Vword_inj[] ?; subst => /= ->.
             by rewrite pword_of_wordE.
@@ -2333,7 +2437,7 @@ Section PROOF.
           by apply/eqP.
         + exact: wf_vm_set.
         + move => x; rewrite Fv.setP; case: eqP => ?.
-          * by subst; rewrite Fv.setP_eq zero_extend_u.
+          * by subst; rewrite Fv.setP_eq.
           rewrite Fv.setP_neq; last by apply/eqP.
           rewrite /set_RSP Fv.setP_neq; last by apply/eqP.
           done.
@@ -2360,7 +2464,7 @@ Section PROOF.
       case: lret => // - [] [] [] caller lret cbody pc [] ok_cbody ok_pc [] retptr ok_retptr ok_ra exec_body ih.
       have {ih} := ih fn 2%positive.
       rewrite /checked_c ok_fd chk_body => /(_ erefl).
-      rewrite (linear_c_nil _ _ _ _ _ [:: _ ]).
+      rewrite (linear_c_nil _ _ _ _ _ _ [:: _ ]).
       case: (linear_c fn) (valid_c fn (f_body fd) 2%positive) => lbl lbody ok_lbl /= E.
       set P := (P in P :: lbody ++ _).
       set Q := (Q in P :: lbody ++ Q).
@@ -2420,7 +2524,7 @@ Section PROOF.
       rewrite zero_extend_u => ?; subst rsp.
       have {ih} := ih fn 2%positive.
       rewrite /checked_c ok_fd chk_body => /(_ erefl).
-      rewrite (linear_c_nil _ _ _ _ _ [:: _ ]).
+      rewrite (linear_c_nil _ _ _ _ _ _ [:: _ ]).
       case: (linear_c fn) (valid_c fn (f_body fd) 2%positive) => lbl lbody ok_lbl /= E.
       set P := (P in P :: lbody ++ _).
       set Q := (Q in P :: lbody ++ Q).

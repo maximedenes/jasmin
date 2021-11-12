@@ -657,9 +657,10 @@ Section LEMMA.
       | RAstack _ =>
         True
       | RAnone =>
-        [/\
-         ¬Sv.In vtmp (magic_variables p) &
-         all (λ x : var_i, isSome (is_word_type (vtype x))) (f_params fd)
+        [/\ ¬Sv.In vtmp (magic_variables p)
+         & all
+             (fun x => if vtype (v_var x) is sword _ then true else false)
+             (f_params fd)
         ]
       end.
     - case: sf_return_address checked_ra; last by [].
