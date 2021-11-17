@@ -26,6 +26,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
 Require Import expr compiler_util ZArith.
+Require Import x86_decl x86_instr_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

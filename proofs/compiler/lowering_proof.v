@@ -28,7 +28,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import ZArith psem compiler_util x86_decl.
+Require Import ZArith psem compiler_util x86_instr_decl.
 Require Export lowering.
 Import Utf8.
 Import Psatz.
@@ -39,8 +39,6 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap_scope.
 Local Open Scope seq_scope.
-
-#[ local ] Existing Instance x86_decl.x86_pd.
 
 Section PROOF.
   Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
@@ -2128,7 +2126,7 @@ Section PROOF.
         by rewrite /sem_sopn /= /exec_sopn /sopn_sem /= He1 He2 /= /truncate_word hsz1 hsz2.
       rewrite /lower_mulu; case hsz: check_size_16_64 => //.
       have /andP [hsz16 hsz64] := assertP hsz.
-      have := @is_wconstP _ gd s1' sz e1; case: is_wconst => [ n1 | _ ].
+      have := @is_wconstP gd s1' sz e1; case: is_wconst => [ n1 | _ ].
       + move => /(_ _ erefl) /=; rewrite He1 /= /truncate_word hsz1 => - [?]; subst n1.
         set s2'' := with_vm s1'
            (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w1)) ].
@@ -2154,7 +2152,7 @@ Section PROOF.
             rewrite /get_gvar /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word hsz2 cmp_le_refl /x86_MUL hsz /= zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE.
             exact Hw''.
         + exact: (eq_exc_freshT Hs3'' Hs2').
-      have := @is_wconstP _ gd s1' sz e2; case: is_wconst => [ n2 | _ ].
+      have := @is_wconstP gd s1' sz e2; case: is_wconst => [ n2 | _ ].
       + move => /(_ _ erefl) /=; rewrite He2 /= /truncate_word hsz2 => - [?]; subst n2.
         set s2'' := with_vm s1' (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w2)) ].
         have Heq: eq_exc_fresh s2'' s1'.
@@ -2363,7 +2361,7 @@ Section PROOF.
     sem_call p  ev mem f va mem' vr ->
     sem_call p' ev mem f va mem' vr.
   Proof.
-    apply (@sem_call_Ind _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

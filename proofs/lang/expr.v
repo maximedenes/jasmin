@@ -28,7 +28,8 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From CoqWord Require Import ssrZ.
-Require Export strings word utils type ident var global sem_type arch_decl x86_decl x86_instr_decl.
+Require Export strings word utils type ident var global sem_type arch_decl.
+Require Import x86_decl x86_instr_decl.
 Require Import xseq.
 Import Utf8 ZArith.
 

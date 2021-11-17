@@ -2,6 +2,7 @@ Require Import x86_sem linear_sem.
 Import Utf8 Relation_Operators.
 Import all_ssreflect all_algebra.
 Require Import compiler_util expr psem x86_sem linear x86_variables asmgen.
+Require Import x86_decl x86_instr_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

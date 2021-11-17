@@ -1,7 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ssrring.
 Require Import low_memory psem x86_sem compiler_util lowering lowering_proof x86_variables_proofs asmgen.
-Require x86_decl.
+Require Import x86_decl x86_instr_decl.
 
 Import Utf8.
 Import GRing.
@@ -11,8 +11,6 @@ Import oseq.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-#[ local ] Existing Instance x86_decl.x86_pd.
 
 Lemma assemble_leaP rip ii sz sz' (w:word sz') lea adr m s:
   (sz ≤ Uptr)%CMP →

@@ -4,6 +4,7 @@ Import Utf8.
 Import oseq.
 Import GRing.
 Require Import ssrring.
+Require Import x86_decl x86_instr_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

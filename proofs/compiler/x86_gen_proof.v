@@ -5,7 +5,8 @@ Require Import x86_gen x86_variables_proofs asmgen_proof.
 
 Import Utf8.
 Import Relation_Operators.
-Import linear linear_sem label x86_sem x86_decl x86_variables.
+Require Import label linear linear_sem.
+Require Import x86_decl x86_linear x86_sem x86_variables.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -160,7 +161,7 @@ Lemma assemble_iP i j ls ls' lc xs :
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   match_state rip ls lc xs →
   assemble_i rip i = ok j →
-  linear_sem.eval_instr p i ls = ok ls' →
+  linear_sem.eval_instr p x86_linear_params i ls = ok ls' →
   exists2 xs': x86_state,
     arch_sem.eval_instr p' j xs = ok xs'  &
     exists2 lc',
@@ -246,7 +247,7 @@ Lemma match_state_step ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   match_state rip ls lc xs →
-  step p ls = ok ls' →
+  step p x86_linear_params ls = ok ls' →
   exists2 xs',
     fetch_and_eval p' xs = ok xs' &
     exists2 lc',
@@ -265,7 +266,7 @@ Qed.
 Lemma match_state_sem ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
-  lsem p ls ls' →
+  lsem p x86_linear_params ls ls' →
   match_state rip ls lc xs →
   ∃ xs' lc',
     [/\ x86sem p' xs xs' ,

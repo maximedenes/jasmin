@@ -26,10 +26,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Utf8.
-Require Import compiler_util expr low_memory.
-Require x86_decl.
-
-#[ local ] Existing Instance x86_decl.x86_pd.
+Require Import compiler_util expr low_memory x86_instr_decl.
 
 Section LOWERING.
 
