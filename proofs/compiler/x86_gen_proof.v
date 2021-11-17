@@ -12,6 +12,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+#[ local ] Existing Instance x86_pd.
+
 Lemma assemble_progP p p' :
   assemble_prog p = ok p' →
   let rip := mk_rip p.(lp_rip) in
@@ -197,7 +199,7 @@ case: i => ii [] /=.
   have [v' ok_v' hvv'] := eval_assemble_word eqm ok_d ok_v.
   rewrite ok_v' /= (value_uincl_word hvv' ok_ptr) /=.
   case ptr_eq: decode_label => [ [] fn lbl | // ] /=.
-  replace (decode_label _ ptr) with (Some (fn, lbl));
+  replace (@decode_label x86_pd _ ptr) with (Some (fn, lbl));
     last by rewrite -(assemble_prog_labels ok_p').
   rewrite /=.
   case get_fd: (get_fundef _) => [ fd | // ].

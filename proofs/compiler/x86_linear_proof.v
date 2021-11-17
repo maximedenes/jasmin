@@ -31,6 +31,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+#[ local ] Existing Instance x86_pd.
+
 Lemma wf_x86_allocate_stack_frame :
   forall rspi sz,
     isSome (is_lopn (x86_allocate_stack_frame rspi sz)).
@@ -119,7 +121,6 @@ Proof.
   rewrite Hvrsp /=.
   by rewrite !zero_extend_u pword_of_wordE.
 Qed.
-
 
 Lemma wf_x86_lassign :
   forall x ws e,

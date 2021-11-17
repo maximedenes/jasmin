@@ -43,7 +43,10 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* Parameters specific to the architecture. *)
+Definition ptr_data := x86_decl.x86_pd.
 Definition mov_ofsP := x86_mov_ofsP.
+
+#[ local ] Existing Instance ptr_data.
 
 Section PROOF.
 

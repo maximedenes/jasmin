@@ -12,6 +12,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+#[ local ] Existing Instance x86_decl.x86_pd.
+
 Lemma assemble_leaP rip ii sz sz' (w:word sz') lea adr m s:
   (sz ≤ Uptr)%CMP →
   (sz ≤ sz')%CMP →

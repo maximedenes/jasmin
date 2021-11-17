@@ -31,6 +31,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+#[ local ] Existing Instance x86_pd.
+
 (* Linear parameters specific to x86. *)
 (* Read the definition in linear.v for more information. *)
 

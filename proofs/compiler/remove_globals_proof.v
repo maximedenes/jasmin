@@ -42,6 +42,8 @@ Proof. by move=> h1 h2 g v /h1 /h2. Qed.
 
 Module INCL. Section INCL.
 
+  Context {pd: PointerData}.
+
   Section INCL_E.
     Context (gd1 gd2: glob_decls) (s: estate) (hincl: gd_incl gd1 gd2).
     Let P e : Prop :=
@@ -196,7 +198,7 @@ Module INCL. Section INCL.
   Lemma gd_incl_fun m (fn : funname) (l : seq value) m0 vs:
       sem_call P1 ev m fn l m0 vs -> Pfun m fn l m0 vs.
   Proof.
-    apply: (@sem_call_Ind _ _ _ P1 ev Pc Pi_r Pi Pfor Pfun
+    apply: (@sem_call_Ind _ _ _ _ P1 ev Pc Pi_r Pi Pfor Pfun
              Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false
              Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
@@ -302,6 +304,7 @@ End EXTEND. Import EXTEND.
 
 Module RGP. Section PROOFS.
 
+  Context {pd: PointerData}.
   Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
@@ -762,7 +765,7 @@ Module RGP. Section PROOFS.
      sem_call P ev m1 f vargs m2 vres ->
      Pfun m1 f vargs m2 vres.
   Proof.
-    apply (@sem_call_Ind _ _ _ P ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
+    apply (@sem_call_Ind _ _ _ _ P ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
               Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

@@ -16,6 +16,10 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap_scope.
 
+Section WITH_POINTER_DATA.
+
+Context {pd: PointerData}.
+
 Lemma vrvs_rec_set_of_var_i_seq acc xs :
   vrvs_rec acc [seq Lvar x | x <- xs] = set_of_var_i_seq acc xs.
 Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
@@ -31,9 +35,15 @@ Lemma init_stk_stateI fex pex gd s s' :
               (evm s').[x] = vmap0.[x]].
 Proof.
   move => checked_sp_rip.
-  apply: rbindP => m ok_m [<-] /=; split => //.
-  + by rewrite Fv.setP_eq pword_of_wordE.
-  + by rewrite Fv.setP_neq // Fv.setP_eq pword_of_wordE.
+  apply: rbindP => m ok_m [<-] /=;
+    split => //;
+    rewrite -/(to_pword _ (Vword (top_stack m)));
+    rewrite -/(to_pword _ (Vword gd));
+    rewrite !to_pword_u.
+  + by rewrite Fv.setP_eq.
+  + rewrite Fv.setP_neq.
+    * by rewrite Fv.setP_eq.
+    * by case: Uptr.
   by move=> x /eqP ? /eqP ?; rewrite !Fv.setP_neq // eq_sym.
 Qed.
 
@@ -56,13 +66,19 @@ Proof.
   by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
 Qed.
 
+End WITH_POINTER_DATA.
+
 Lemma orbX (P Q: bool):
   P || Q = (P && ~~ Q) || Q.
 Proof. by case: Q; rewrite !(orbT, orbF, andbT). Qed.
 
 Section PROG.
 
-Context (p: sprog) (extra_free_registers: instr_info → option var) (global_data: pointer).
+Context
+  {pd: PointerData}
+  (p: sprog)
+  (extra_free_registers: instr_info -> option var)
+  (global_data: pointer).
 
 Definition valid_writefun (w: funname → Sv.t) (f: sfun_decl) : bool :=
   Sv.subset (write_fd p extra_free_registers w f.2) (w f.1).
@@ -92,8 +108,15 @@ Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
 Let vtmp : var := var_of_register RAX.
 
+Lemma rip_neq_rsp : p.(p_extra).(sp_rip) != p.(p_extra).(sp_rsp).
+Proof. by move: ok_p; rewrite /check; t_xrbindP => _ _ _/assertP. Qed.
+
 Lemma vgd_neq_vrsp : vgd != vrsp.
-Proof. by move: ok_p; rewrite /check; t_xrbindP => _ _ __/assertP. Qed.
+Proof.
+  have := rip_neq_rsp.
+  rewrite /vgd /vrsp /=.
+  by case: Uptr.
+Qed.
 
 Record merged_vmap_precondition (W: Sv.t) (sz: wsize) (m: mem) (vm: vmap) : Prop :=
   MVP {
@@ -301,7 +324,7 @@ Section LEMMA.
       + by rewrite (mvm_mem sim).
       + apply (@vmap_uincl_exT (evm t1)).
         + by apply: vmap_uincl_exI (mvm_vmap sim); rewrite heq; SvD.fsetdec.
-        apply (@vmap_uincl_exI _ (extra_free_registers_at extra_free_registers ii)); first by SvD.fsetdec.
+        apply (@vmap_uincl_exI _ _ (extra_free_registers_at extra_free_registers ii)); first by SvD.fsetdec.
         by apply/vmap_eq_except_uincl_ex/vmap_eq_exceptS/kill_extra_register_vmap_eq_except.
       have hwf := mvm_wf sim.
       rewrite /t1' /kill_extra_register /kill_extra_register_vmap.
@@ -331,7 +354,7 @@ Section LEMMA.
     exists2 v', sem_pexpr (p_globs p) t e = ok v' & value_uincl v v'.
   Proof.
     rewrite /check_e/check_fv => /assertP/Sv.is_empty_spec hd sim sem.
-    have := @sem_pexpr_uincl_on (p_globs p) s (evm t) _ _ _ sem.
+    have := @sem_pexpr_uincl_on _ (p_globs p) s (evm t) _ _ _ sem.
     rewrite (with_vm_m (mvm_mem sim)) with_vm_same; apply.
     by move=> x hx; apply (mvm_vmap sim); SvD.fsetdec.
   Qed.
@@ -634,7 +657,7 @@ Section LEMMA.
   Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
   Proof.
     move => m ? fn fd vargs vargs' s0 s1 s2 vres vres' ok_fd ok_vargs /init_stk_stateI
-      -/(_ vgd_neq_vrsp) [vgd_v ok_m' vrsp_v hvmap0] ok_s1 sexec ih ok_vres ok_vres' ->
+      -/(_ rip_neq_rsp) [vgd_v ok_m' vrsp_v hvmap0] ok_s1 sexec ih ok_vres ok_vres' ->
       ii fd' tvm1 args' ok_fd' ok_rastack sp_align vrsp_tv vgd_tv hwftvm1 ok_args' ok_args''.
     move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
@@ -793,7 +816,10 @@ Section LEMMA.
         rewrite /valid_writefun /write_fd /saved_stack_valid /=.
         case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ _ _ /assertP /Sv_memP r_not_written /assertP.
         rewrite /magic_variables /= /var_of_register /= => /Sv_memP ? /Sv.subset_spec ?.
-        by apply/andP; split; [apply/andP; split;apply/eqP | apply/Sv_memP]; SvD.fsetdec.
+        apply/and3P.
+        split;
+          [apply/eqP | apply/eqP | apply/Sv_memP ];
+          SvD.fsetdec.
       + exact: sp_align.
       + exact: vrsp_tv.
       + exact: ok_m'.
@@ -821,7 +847,7 @@ Section LEMMA.
       _
     :=
       Eval hnf in
-      @sem_call_Ind _ _ _ p global_data Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc.
+      @sem_call_Ind _ _ _ _ p global_data Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc.
 
 End LEMMA.
 

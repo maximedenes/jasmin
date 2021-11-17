@@ -69,13 +69,17 @@ Notation spointer := (sword Uptr) (only parsing).
 
 Section Section.
 
-Variables (pmap:pos_map) (glob_size:Z).
-Variables (rsp rip: pointer).
+Context
+  {pd: PointerData}
+  (pmap: pos_map)
+  (glob_size: Z)
+  (rsp rip: pointer).
 
-Variable (Slots : Sv.t).
-Variable (Addr : slot -> pointer).
-Variable (Writable : slot -> bool).
-Variable (Align : slot -> wsize).
+Context
+  (Slots : Sv.t)
+  (Addr : slot -> pointer)
+  (Writable : slot -> bool)
+  (Align : slot -> wsize).
 
 (* Any pointer in a slot is valid. *)
 Definition slot_valid m := forall s p, Sv.In s Slots ->
@@ -800,34 +804,54 @@ Proof.
 Qed.
 
 Lemma cast_ptrP gd s e i : sem_pexpr gd s e >>= to_int = ok i ->
-  sem_pexpr gd s (cast_ptr e) = ok (Vword (wrepr U64 i)).
-Proof. by t_xrbindP => v he hi ;rewrite /cast_ptr /cast_w /= he /sem_sop1 /= hi. Qed.
+  sem_pexpr gd s (cast_ptr e) = ok (Vword (wrepr Uptr i)).
+Proof.
+    by t_xrbindP => v he hi;
+      rewrite /cast_ptr /cast_w /= he /sem_sop1 /= hi.
+Qed.
 
 Lemma cast_wordP gd s e i : 
   sem_pexpr gd s e >>= to_int = ok i ->
   exists sz (w:word sz), sem_pexpr gd s (cast_word e) = ok (Vword w) /\
-                         truncate_word U64 w = ok (wrepr U64 i).
+                         truncate_word Uptr w = ok (wrepr Uptr i).
 Proof.
   move=> he.
-  have : exists sz (w:word sz), 
-              sem_pexpr gd s (cast_ptr e) = ok (Vword w) /\
-                      truncate_word U64 w = ok (wrepr U64 i). 
-  + exists U64, (wrepr U64 i); split; first by apply cast_ptrP.
-    by rewrite truncate_word_u.
-  case: e he => // -[] // [] //=.
-  move=> e he _; move: he; rewrite /sem_sop1 /=; t_xrbindP => v v' -> w.
-  move=> /to_wordI [sw [w' [hsw -> ->]]] <- [<-].
-  by exists sw, w'; split => //; rewrite /truncate_word hsw wrepr_unsigned.
+  have: exists sz (w:word sz),
+    sem_pexpr gd s (cast_ptr e) = ok (Vword w)
+    /\ truncate_word Uptr w = ok (wrepr Uptr i).
+  - exists Uptr. exists (wrepr Uptr i).
+    split.
+    + by apply cast_ptrP.
+    + by rewrite truncate_word_u.
+  case: e he => // -[] // ws //=.
+  rewrite /sem_sop1 /=.
+  case: (ws == Uptr)%CMP / eqP => E /=.
+  - move=> e he _.
+    move: he.
+    t_xrbindP => v v' -> w.
+    move=> /to_wordI [ws' [w' [hsw -> ->]]] <- [<-].
+    exists ws'. exists w'.
+    split.
+    + done.
+    + by rewrite /truncate_word -E hsw wrepr_unsigned.
+  - done.
 Qed.
 
 Lemma mk_ofsP aa sz gd s2 ofs e i :
   sem_pexpr gd s2 e >>= to_int = ok i ->
-  sem_pexpr gd s2 (mk_ofs aa sz e ofs) = ok (Vword (wrepr U64 (i * mk_scale aa sz + ofs)%Z)).
+  sem_pexpr gd s2 (mk_ofs aa sz e ofs) = ok (Vword (wrepr Uptr (i * mk_scale aa sz + ofs)%Z)).
 Proof.
   rewrite /mk_ofs; case is_constP => /= [? [->] //| {e} e he] /=.
   rewrite /sem_sop2 /=.
   have [sz' [w [-> /= -> /=]]]:= cast_wordP he.
-  by rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC.
+  by rewrite
+    2!truncate_word_u /=
+    /truncate_word
+    cmp_le_refl /=
+    zero_extend_u
+    wrepr_add
+    wrepr_mul
+    GRing.mulrC.
 Qed.
 
 Lemma mk_ofsiP gd s e i aa sz :
@@ -993,10 +1017,10 @@ Section EXPR.
     wf_local x pk ->
     valid_pk rmap s' sr pk ->
     mk_addr_ptr pmap x aa ws pk e1 = ok (xi, ei) ->
-    ∃ (wx wi : u64),
+    ∃ (wx wi: pointer),
       [/\ Let x := get_var (evm s') xi in to_pointer x = ok wx,
           Let x := sem_pexpr [::] s' ei in to_pointer x = ok wi
-        & (sub_region_addr sr + wrepr U64 (i1 * mk_scale aa ws))%R = (wx + wi)%R].
+        & (sub_region_addr sr + wrepr Uptr (i1 * mk_scale aa ws))%R = (wx + wi)%R].
   Proof.
     move=> he1 hwfpk hpk.
     rewrite /mk_addr_ptr.
@@ -1028,10 +1052,10 @@ Section EXPR.
     wf_vpk x vpk ->
     valid_vpk rmap s' x sr vpk ->
     mk_addr pmap x aa ws vpk e1 = ok (xi, ei) ->
-    ∃ (wx wi : u64),
+    ∃ (wx wi : pointer),
       [/\ Let x := get_var (evm s') xi in to_pointer x = ok wx,
           Let x := sem_pexpr [::] s' ei in to_pointer x = ok wi
-        & (sub_region_addr sr + wrepr U64 (i1 * mk_scale aa ws))%R = (wx + wi)%R].
+        & (sub_region_addr sr + wrepr Uptr (i1 * mk_scale aa ws))%R = (wx + wi)%R].
   Proof.
     move=> he1 hwfpk hpk.
     rewrite /mk_addr.
@@ -1348,7 +1372,7 @@ Lemma is_align_sub_region_stkptr x s ofs ws z f :
 Proof.
   move=> hlocal.
   rewrite /sub_region_addr /=.
-  (* TODO: could wfs_offset_align be is_align z.(z_ofs) U64 ?
+  (* TODO: could wfs_offset_align be is_align z.(z_ofs) Uptr ?
      does it make sense ?
   *)
   apply: is_align_add hlocal.(wfs_offset_align).
@@ -2064,7 +2088,12 @@ Proof.
   rewrite /= in hpk hwfpk.
   t_xrbindP=> _ /assertP /hpk hread <- <- /=.
   rewrite (sub_region_addr_stkptr hwfpk) in hread.
-  rewrite vs_rsp /= !zero_extend_u hread /= truncate_word_u.
+  rewrite
+    truncate_word_u /=
+    vs_rsp /=
+    truncate_word_u /=
+    hread /=
+    truncate_word_u.
   eexists; split; first by reflexivity.
   by rewrite wrepr0 GRing.addr0.
 Qed.
@@ -2187,7 +2216,8 @@ Proof.
   + move=> <- [<-].
     exists (Pregptr p); split=> //=.
     rewrite get_var_eq.
-    by rewrite hlocal.(wfr_rtype).
+    rewrite hlocal.(wfr_rtype).
+    by rewrite /pof_val to_pword_u.
   move=> hneq /hptr [pk [hly hpk]].
   exists pk; split=> //.
   case: pk hly hpk => //=.
@@ -2277,13 +2307,13 @@ Lemma valid_state_set_stack_ptr rmap m0 s1 s2 x s ofs ws z f mem2 sr v :
   (forall p ws,
     disjoint_range (sub_region_addr (sub_region_stkptr s ws z)) Uptr p ws ->
     read mem2 p ws = read (emem s2) p ws) ->
-  read mem2 (sub_region_addr (sub_region_stkptr s ws z)) U64 = ok (sub_region_addr sr) ->
+  read mem2 (sub_region_addr (sub_region_stkptr s ws z)) Uptr = ok (sub_region_addr sr) ->
   eq_sub_region_val x.(vtype) (emem s2) sr (get_var_bytes (set_move rmap x sr) sr.(sr_region) x) v ->
   valid_state (set_stack_ptr (set_move rmap x sr) s ws z f) m0 (with_vm s1 (evm s1).[x <- pof_val x.(vtype) v]) (with_mem s2 mem2).
 Proof.
   move=> hvs hwf hlx hss hvalideq hreadeq hreadptr heqval.
   have hreadeq': forall p ws,
-    disjoint_range (sub_region_addr (sub_region_at_ofs (sub_region_stkptr s ws z) (Some 0) (wsize_size U64))) Uptr p ws ->
+    disjoint_range (sub_region_addr (sub_region_at_ofs (sub_region_stkptr s ws z) (Some 0) (wsize_size Uptr))) Uptr p ws ->
     read mem2 p ws = read (emem s2) p ws.
   + by move=> ??; rewrite -sub_region_addr_offset wrepr0 GRing.addr0; apply hreadeq.
   have /wf_locals hlocal := hlx.
@@ -2427,7 +2457,7 @@ Qed.
 Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
 
 (* The semantics of `mov_ofs` are as described in `stack_alloc.v`. *)
-Hypothesis mov_ofsP : forall P' s1 e i x ofs w vpk s2 ins,
+Hypothesis mov_ofsP : forall (P': sprog) s1 e i x ofs w vpk s2 ins,
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
   mov_ofs x vpk e ofs = Some ins ->
@@ -2534,8 +2564,18 @@ Proof.
       set vp := pof_val p.(vtype) (Vword (sub_region_addr (sub_region_at_ofs sry (Some ofs) len))).
       exists (with_vm s2 (evm s2).[p <- vp]); split.
       + rewrite /vp -sub_region_addr_offset haddr -GRing.addrA -wrepr_add.
-        apply (mov_ofsP _ P'_globs he1 Hmov_ofs).
-        by case: (p) hlocal.(wfr_rtype) => ? pn /= ->.
+
+        set w' := Vword (w + wrepr Uptr (ofs2 + ofs)).
+        have Hwrite_lval :
+          write_lval
+            [::]
+            (VarI p xii)
+            (Vword (w + wrepr Uptr (ofs2 + ofs)))
+            s2
+          = ok (with_vm s2 (evm s2).[p <- pof_val (vtype p) w']).
+        * by case: (p) hlocal.(wfr_rtype) => ? pn /= ->.
+        apply (mov_ofsP _ P'_globs he1 Hmov_ofs Hwrite_lval).
+
       (* valid_state update *)
       by apply (valid_state_set_move_regptr hvs hwf hlx (heqval _)).
     move=> s ofs' ws z f hlx hlocal.
@@ -2554,9 +2594,9 @@ Proof.
           stack_stable (emem s2) mem2,
           (forall p ws, validw mem2 p ws = validw (emem s2) p ws),
           (forall p ws,
-            disjoint_range (sub_region_addr (sub_region_stkptr s ws z)) U64 p ws ->
+            disjoint_range (sub_region_addr (sub_region_stkptr s ws z)) Uptr p ws ->
             read mem2 p ws = read (emem s2) p ws) &
-          read mem2 (sub_region_addr (sub_region_stkptr s ws z)) U64 =
+          read mem2 (sub_region_addr (sub_region_stkptr s ws z)) Uptr =
             ok (sub_region_addr (sub_region_at_ofs sry (Some ofs) len))].
     + move: hi2 => /=.
       case: ifP.
@@ -2571,10 +2611,10 @@ Proof.
         have hvp: validw (emem s2) (sub_region_addr (sub_region_stkptr s ws z)) Uptr.
         apply (validw_sub_region_addr hvs hwfs).
         by apply (is_align_sub_region_stkptr hlocal).
-      have /writeV -/(_ (w + wrepr U64 (ofs2 + ofs))%R) [mem2 hmem2] := hvp.
+      have /writeV -/(_ (w + wrepr Uptr (ofs2 + ofs))%R) [mem2 hmem2] := hvp.
       exists mem2; split.
       + apply (mov_ofsP _ P'_globs he1 hi2).
-        rewrite /= vs_rsp /= !zero_extend_u.
+        rewrite /= vs_rsp /= !truncate_word_u /=.
         by rewrite -(sub_region_addr_stkptr hlocal) hmem2.
       + by apply (Memory.write_mem_stable hmem2).
       + by move=> ??; apply (write_validw_eq hmem2).
@@ -3530,7 +3570,7 @@ Proof.
   move=> _; exists f.
   rewrite memi_mem_U8; apply: mem_incl_r hcheck; rewrite subset_interval_of_zone.
   rewrite -(Z.add_0_l i).
-  rewrite -(sub_zone_at_ofs_compose _ _ _ (size_of sword64)).
+  rewrite -(sub_zone_at_ofs_compose _ _ _ (size_of (spointer))).
   apply zbetween_zone_byte => //.
   by apply zbetween_zone_refl.
 Qed.
@@ -3629,7 +3669,9 @@ Proof.
   rewrite Mvar.setP; case: eqP.
   + move=> <- [<-].
     exists (Pregptr p); split=> //=.
-    by rewrite get_var_eq hlocal.(wfr_rtype).
+    rewrite get_var_eq hlocal.(wfr_rtype).
+    rewrite /on_vu /pof_val.
+    by rewrite to_pword_u.
   move=> hneq /hptr [pk [hly hpk]].
   exists pk; split=> //.
   case: pk hly hpk => //=.

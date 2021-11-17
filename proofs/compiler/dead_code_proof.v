@@ -39,7 +39,11 @@ Local Open Scope seq_scope.
 
 Section Section.
 
-Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+Context
+  {pd: PointerData}
+  {T:eqType}
+  {pT:progT T}
+  {sCP: semCallParams}.
 
 Section PROOF.
 
@@ -607,7 +611,7 @@ Section PROOF.
     + have Hwf := wf_write_lvals (wf_init Hi wf_vmap0) Hw. by apply Hwf.
     have : evm s1 <=[sv] vm1. + by apply: vmap_uincl_onI Hvm2'2;SvD.fsetdec.
     move=> Hvm Hwf. move: (Hc Hwf vm1 Hvm). move=> [vm2'] /= [Hvm2'1] Hsem'.
-    move: Hres; have /= <-:= @sem_pexprs_get_var gd s2 => Hres.
+    move: Hres; have /= <-:= @sem_pexprs_get_var _ gd s2 => Hres.
     case: s2 Hsem Hfi Hvm2'1 Hsem' Hres Hc=> emem2 evm2 Hsem Hfi Hvm2'1 Hsem' Hres Hc.
     have Hres' : sem_pexprs gd {| emem := emem2; evm := evm2 |}
            [seq Plvar i | i <- fn_keep_only onfun fn res] = ok (fn_keep_only onfun fn vres).
@@ -636,7 +640,7 @@ Section PROOF.
     + rewrite -eq_p_extra. rewrite /with_vm /=. case: (s0) Hi=> //=.
     + have /= -> := write_vars_lvals gd fp vargs1' (with_vm s0 (evm s0)). apply Hw'. 
     + rewrite /with_vm /=. rewrite /with_vm /= in Hsem'.
-    + have /= <- := Hes gd {| emem := emem2; evm := vm2' |} (fn_keep_only onfun fn res). apply Hres''.
+    + have /= <- := Hes _ gd {| emem := emem2; evm := vm2' |} (fn_keep_only onfun fn res). apply Hres''.
   Qed.
 
   Lemma dead_code_callP fn mem mem' va va' vr:
@@ -646,13 +650,16 @@ Section PROOF.
       sem_call p' ev mem fn va' mem' vr' /\  List.Forall2 value_uincl (fn_keep_only onfun fn vr) vr'.
   Proof.
     move=> Hall Hsem.
-    apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc mem fn va mem' vr Hsem _ Hall).
   Qed.
 
 End PROOF.
 
 End Section.
+
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
 
 Lemma dead_code_tokeep_callPu (p p': uprog) onfun fn ev mem mem' va va' vr:
   dead_code_prog_tokeep onfun p = ok p' ->
@@ -712,3 +719,5 @@ Lemma dead_code_fd_meta onfun fn (fd fd': sfundef) :
 Proof.
   by case: fd => /= ; t_xrbindP => /= ????????? <-.
 Qed.
+
+End WITH_POINTER_DATA.

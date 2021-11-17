@@ -32,6 +32,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+#[ local ] Existing Instance x86_pd.
+
 Definition lea_ptr x y ofs :=
   Copn [:: x] AT_none (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
 

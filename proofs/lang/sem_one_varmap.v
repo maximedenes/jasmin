@@ -71,6 +71,7 @@ Qed.
 Section SEM.
 
 Context
+  {pd: PointerData}
   (p: sprog)
   (extra_free_registers: instr_info -> option var)
   (var_tmp: var).
@@ -109,7 +110,7 @@ Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
   | RAstack _ =>
     extra_free_registers ii != None
   | RAreg ra =>
-    (ra != vgd) && (ra != vrsp) && (~~ Sv.mem ra k)
+    [&& (ra != vgd), (ra != vrsp) & (~~ Sv.mem ra k) ]
   | RAnone =>
     ~~ Sv.mem x magic_variables
   end.
@@ -142,12 +143,12 @@ Definition ra_undef_vm fd vm (x: var) : vmap :=
 
 Definition saved_stack_valid fd (k: Sv.t) : bool :=
   if fd.(f_extra).(sf_save_stack) is SavedStackReg r
-  then (r != vgd) && (r != vrsp) && (~~ Sv.mem r k)
+  then [&& (r != vgd), (r != vrsp) & (~~ Sv.mem r k) ]
   else true.
 
 Definition efr_valid ii : bool :=
   if extra_free_registers ii is Some r
-  then (r != vgd) && (r != vrsp) && (vtype r == sword Uptr)
+  then [&& (r != vgd), (r != vrsp) & (vtype r == sword Uptr) ]
   else true.
 
 Definition saved_stack_vm fd : Sv.t :=

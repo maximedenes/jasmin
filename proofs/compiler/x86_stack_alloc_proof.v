@@ -29,12 +29,14 @@ Require Import
   expr
   memory_model
   psem
-  stack_alloc_proof_2
-  x86_stack_alloc.
+  stack_alloc_proof_2.
+Require Import x86_decl x86_stack_alloc.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+#[ local ] Existing Instance x86_pd.
 
 Section X86_PROOF.
 
@@ -67,7 +69,7 @@ Section X86_PROOF.
 
 End X86_PROOF.
 
-Lemma x86_mov_ofsP P' s1 e i x ofs w vpk s2 ins :
+Lemma x86_mov_ofsP (P': sprog) s1 e i x ofs w vpk s2 ins :
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
   x86_mov_ofs x vpk e ofs = Some ins ->

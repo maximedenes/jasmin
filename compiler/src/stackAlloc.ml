@@ -161,7 +161,7 @@ let memory_analysis pp_err ~debug tbl up =
   end;
 
   let sp' = 
-    match Stack_alloc.alloc_prog false x86_mov_ofs crip crsp gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog U64 false x86_mov_ofs crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (pp_err tbl) tbl e in

@@ -2611,7 +2611,7 @@ Definition vmap_uincl_ex (dom: Sv.t) : relation vmap :=
   λ vm1 vm2,
   ∀ x : var, ~Sv.In x dom → (eval_uincl vm1.[x] vm2.[x])%vmap.
 
-Arguments vmap_uincl_ex _ _%vmap _%vmap.
+#[ global ] Arguments vmap_uincl_ex _ _%vmap _%vmap.
 
 Notation "vm1 '<=[\' s ']' vm2" := (vmap_uincl_ex s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  <=[\ s ]  '/'  vm2 ']'").
@@ -3186,6 +3186,9 @@ Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at n
 
 Notation "vm1 '<=[' s ']' vm2" := (vmap_uincl_on s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  <=[ s ]  '/'  vm2 ']'").
+
+Notation "vm1 '<=[\' s ']' vm2" := (vmap_uincl_ex s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  <=[\ s ]  '/'  vm2 ']'").
 
 #[ export ] Hint Resolve
   word_uincl_refl

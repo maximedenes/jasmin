@@ -814,7 +814,10 @@ Section TunnelingSem.
     by elim: fs => [|[fn'' fd''] fs Ihfs] //=; case: ifP => // /eqP ->.
   Qed.
 
-  Context (lparams: linear_params).
+  Section WITH_POINTER_DATA.
+  Context
+    {pd: PointerData}
+    (lparams: linear_params).
 
   Lemma get_fundef_eval_instr p' i s1 s2 :
     label_in_lprog p = label_in_lprog p' ->
@@ -841,10 +844,13 @@ Section TunnelingSem.
     by apply: get_fundef_eval_instr.
   Qed.
 
+  End WITH_POINTER_DATA.
 End TunnelingSem.
 
 
 Section TunnelingProof.
+
+  Context {pd: PointerData}.
 
   Context (fn : funname).
 
@@ -1203,8 +1209,8 @@ Section TunnelingProof.
       last by apply: Relation_Operators.rt_step.
     move: s1 s2; pattern (lfd_body fd), (lfd_body fd) at 2; apply: prefixW.
     + move => s1 s2 Hlsem1; apply: Relation_Operators.rt_step.
-      have:= (@get_fundef_lsem1 _ _ _ _ _ (label_in_lprog_tunnel _)).
-      rewrite Hgfd => Hgfd'; apply: (Hgfd' _ _ _ _ _ Hlsem1); clear Hgfd' Hlsem1 => fn'.
+      have:= (@get_fundef_lsem1 _ _ _ _ _ _ (label_in_lprog_tunnel _)).
+      rewrite Hgfd => Hgfd'; apply: (Hgfd' _ _ _ _ _ _ Hlsem1); clear Hgfd' Hlsem1 => fn'.
       rewrite lp_funcs_setfuncs /lfundef_tunnel_partial /tunnel_plan /= /tunnel_partial pairmap_tunnel_bore_empty.
       rewrite (get_fundef_map2 fn' (fun f1 f2 => if fn == f1 then setfb f2 (lfd_body fd) else f2) (lp_funcs p)).
       case Hgfd': (get_fundef _ _) => [fd'|] //; case: ifP => // /eqP ?; subst fn'.
@@ -1287,7 +1293,7 @@ Section TunnelingProof.
       rewrite !onth_rcons !size_rcons eq_refl /= eq_refl get_fundef_partial Hgfd eq_refl.
       rewrite /= find_label_tunnel_partial Hfindl /=.
       move: Hsetcpc; rewrite /s1' /setcpc /= -/s1' => ->.
-      by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
+      by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ _ _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
   move => Honth.
   t_xrbindP => b v Hv; case: b => Hb; last first.
   + have:= (Hplsem1 s1 s2); clear Hplsem1;
@@ -1314,7 +1320,7 @@ Section TunnelingProof.
   rewrite !onth_rcons !size_rcons eq_refl /= eq_refl get_fundef_partial Hgfd eq_refl.
   rewrite /= find_label_tunnel_partial Hfindl /=.
   move: Hsetcpc; rewrite /s1' /setcpc /= -/s1' => ->.
-  by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
+  by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ _ _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
   Qed.
 
   Lemma tunneling_lsem s1 s2 :
@@ -1334,7 +1340,7 @@ Section TunnelingProof.
     rewrite /lprog_tunnel; case Hgfd: (get_fundef _ _) => [fd|]; last by left.
     move: s1 s2; pattern (lfd_body fd), (lfd_body fd) at 2 4 6; apply: prefixW.
     + move => s1 s2 Hlsem1; left.
-      apply: (@get_fundef_lsem1 p _ _ s1 s2 _ _ Hlsem1); first by rewrite -(label_in_lprog_tunnel [::]) Hgfd.
+      apply: (@get_fundef_lsem1 p _ _ _ s1 s2 _ _ Hlsem1); first by rewrite -(label_in_lprog_tunnel [::]) Hgfd.
       clear Hlsem1 => fn'.
       rewrite lp_funcs_setfuncs /lfundef_tunnel_partial /tunnel_plan /= /tunnel_partial pairmap_tunnel_bore_empty.
       rewrite (get_fundef_map2 fn' (fun f1 f2 => if fn == f1 then setfb f2 (lfd_body fd) else f2) (lp_funcs p)).
@@ -1810,7 +1816,10 @@ Section TunnelingCompiler.
     by elim: fns => //= hfns tfns IHfns wfp; apply: well_formed_lprog_tunnel; apply: IHfns.
   Qed.
 
-  Context (lparams: linear_params).
+  Section WITH_POINTER_DATA.
+  Context
+    {pd: PointerData}
+    (lparams: linear_params).
 
   Lemma partial_tunnel_program_lsem fns p s1 s2 :
     well_formed_lprog p ->
@@ -1835,4 +1844,5 @@ Section TunnelingCompiler.
     by apply: (partial_tunnel_program_lsem wfp Hplsem34).
   Qed.
 
+  End WITH_POINTER_DATA.
 End TunnelingCompiler.
