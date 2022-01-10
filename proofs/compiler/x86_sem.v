@@ -97,9 +97,6 @@ FIXME: this is mostly independent of the architecture and may be partially moved
 TODO: arguments / results are well-typed
  *)
 
-Definition x86_callee_saved : seq register :=
-  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
-
 Definition preserved_register (r: register) : relation x86_mem :=
   λ s1 s2,
     s1.(asm_reg) r = s2.(asm_reg) r.

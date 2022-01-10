@@ -54,6 +54,7 @@ Class arch_decl (reg xreg rflag cond : Type) :=
   ; toS_r     :> ToString (sword reg_size) reg
   ; toS_x     :> ToString (sword xreg_size) xreg
   ; toS_f     :> ToString sbool rflag
+  ; callee_saved : seq reg
 }.
 
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
