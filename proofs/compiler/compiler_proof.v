@@ -24,43 +24,68 @@
  * ----------------------------------------------------------------------- *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
+Require Import arch_extra.
 Require Import psem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
                makeReferenceArguments_proof
                array_copy array_copy_proof array_init_proof
                unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof
                array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof_2
-               lowering_proof
                tunneling_proof
                linearization_proof
-               x86_linearization_proof
-               x86_gen_proof
                merge_varmaps_proof
                psem_of_sem_proof.
 Import Utf8.
-Import psem_facts x86_sem x86_gen.
-Require x86_stack_alloc_proof x86_linearization_proof.
+Import psem_facts.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Record architecture_hyps (aparams : architecture_params) := mk_ahyps {
+Record architecture_hyps
+  `{asm_e : asm_extra}
+  {fresh_vars lowering_options : Type}
+  (aparams : architecture_params fresh_vars lowering_options) := {
   is_move_opP : forall op sz vx v,
     aparams.(is_move_op) op = Some sz ->
     exec_sopn (Oasm op) [:: vx] = ok v ->
-    List.Forall2 value_uincl v [:: vx]
-}.
+    List.Forall2 value_uincl v [:: vx];
 
-(* Parameters specific to the architecture. *)
-Definition mov_ofsP := x86_stack_alloc_proof.x86_mov_ofsP.
-Definition hlparams := x86_linearization_proof.h_x86_linearization_params.
+  lower_callP : forall
+    (p : prog)
+    (ev : extra_val_t)
+    (options : lowering_options)
+    (warning : instr_info -> warning_msg -> instr_info)
+    (fv : fresh_vars)
+    (is_var_in_memory : var_i -> bool)
+    (_ : fvars_correct aparams fv (p_funcs p))
+    (f : funname)
+    (mem mem' : low_memory.mem)
+    (va vr : seq value),
+    sem_call p ev mem f va mem' vr
+    -> let lprog := lower_prog aparams options warning fv is_var_in_memory p in
+       sem_call lprog ev mem f va mem' vr;
+
+  mov_ofsP : forall (P': sprog) s1 e i x ofs w vpk s2 ins,
+    P'.(p_globs) = [::]
+    -> sem_pexpr [::] s1 e >>= to_pointer = ok i
+    -> mov_ofs aparams x vpk e ofs = Some ins
+    -> write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2
+    -> sem_i P' w s1 ins s2;
+
+  mov_op : asm_op;
+
+  hlparams : h_linearization_params mov_op (lparams aparams);
+}.
 
 Section PROOF.
 
-Variable cparams : compiler_params.
-Variable aparams : architecture_params.
-Variable ahyps   : architecture_hyps aparams.
+Context
+  `{asm_e : asm_extra}
+  {fresh_vars lowering_options : Type}
+  (aparams : architecture_params fresh_vars lowering_options)
+  (ahyps : architecture_hyps aparams)
+  (cparams : compiler_params aparams).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
@@ -126,7 +151,7 @@ Let K : ∀ vr (P Q: _ → Prop),
       ex_intro2 _ _ vr2 (Forall2_trans value_uincl_trans u v) q.
 
 Lemma compiler_first_partP entries (p: prog) (p': uprog) m fn va m' vr :
-  compiler_first_part cparams aparams entries p = ok p' →
+  compiler_first_part cparams entries p = ok p' →
   fn \in entries →
   sem.sem_call p m fn va m' vr →
   exists2 vr',
@@ -146,7 +171,7 @@ Proof.
   rewrite print_uprogP => <- {p'} ok_fn exec_p.
   have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: K; first by move=> vr' Hvr'; apply: (pi_callP (sCP := sCP_unit) ok_pp va_refl); exact Hvr'.
-  apply: Ki; first by move => vr'; apply: (lower_callP (lowering_opt cparams) (warning cparams) (is_var_in_memory cparams) ok_fvars).
+  apply: Ki; first by move => vr'; apply: (lower_callP ahyps (lowering_opt cparams) (warning cparams) (is_var_in_memory cparams) ok_fvars).
   apply: Ki; first by move => vr'; apply: (makeReferenceArguments_callP ok_ph).
   apply: Ki; first by move => vr'; apply: (RGP.remove_globP ok_pg).
   apply: Ki; first by move=> vr'; apply:(expand_callP ok_pf).
@@ -174,7 +199,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_partP entries (p: sprog) (p': sprog) :
-  compiler_third_part cparams aparams entries p = ok p' →
+  compiler_third_part cparams entries p = ok p' →
   [/\
     ∀ fn (gd: pointer) m va m' vr,
       fn \in entries →
@@ -212,7 +237,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_part_meta entries (p p' : sprog) :
-  compiler_third_part cparams aparams entries p = ok p' →
+  compiler_third_part cparams entries p = ok p' →
   p_extra p' = p_extra p.
 Proof.
   rewrite /compiler_third_part; t_xrbindP => _ _ pa /dead_code_prog_tokeep_meta[] _ ok_pa _ _ pb /dead_code_prog_tokeep_meta[].
@@ -222,7 +247,7 @@ Qed.
 
 (* TODO: move *)
 Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog mov_ofs rip rsp data ga la p = ok p' →
+  alloc_prog (mov_ofs aparams) rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
   rewrite /alloc_prog; t_xrbindP => ??.
@@ -231,7 +256,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
-  compiler_third_part cparams aparams entries p = ok p' →
+  compiler_third_part cparams entries p = ok p' →
   alloc_ok p' fn m →
   alloc_ok p fn m.
 Proof. case/compiler_third_partP => _; exact. Qed.
@@ -273,7 +298,7 @@ Proof.
 Qed.
 
 Lemma compiler_front_endP entries subroutines (p: prog) (p': sprog) (gd: pointer) m mi fn va m' vr :
-  compiler_front_end cparams aparams entries subroutines p = ok p' →
+  compiler_front_end cparams entries subroutines p = ok p' →
   fn \in entries →
   sem.sem_call p m fn va m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
@@ -309,7 +334,7 @@ Proof.
   have disjoint_va : disjoint_values (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va.
   - rewrite /disjoint_values => i1 pi1 w1 i2 pi2 w2.
     by rewrite (allNone_nth _ params_noptr).
-  have := alloc_progP mov_ofsP ok_p2 exec_p1 m_mi.
+  have := alloc_progP (mov_ofsP ahyps) ok_p2 exec_p1 m_mi.
   move => /(_ va ok_va disjoint_va ok_mi).
   case => mi' [] vr2 [] exec_p2 [] m'_mi' [] ok_vr2 ?.
   have [] := compiler_third_partP ok_p3.
@@ -347,7 +372,6 @@ Proof.
 Qed.
 
 Import sem_one_varmap.
-Import x86_linearization.
 
 Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem) fn args m' res :
   compiler_back_end cparams entries p = ok tp →
@@ -364,11 +388,11 @@ Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem)
         mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
         vm.[vid tp.(lp_rip)]%vmap = ok (pword_of_word rip) →
-        vm_initialized_on vm ((vid (lp_tmp lparams) : var) :: lfd_callee_saved fd) →
+        vm_initialized_on vm (var_tmp aparams :: lfd_callee_saved fd) →
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
-            lsem_exportcall tp x86_linear_sem.x86_mov_eop lm fn vm lm' vm',
+            lsem_exportcall tp (BaseOp (None, mov_op ahyps)) lm fn vm lm' vm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
@@ -378,15 +402,17 @@ Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem)
 Proof.
   rewrite /compiler_back_end; t_xrbindP => - [] ok_export [] checked_p lp ok_lp tp'.
   rewrite !print_linearP => ok_tp ? ok_fn exec_p; subst tp'.
-  have lp_tmp_not_magic : ~~ Sv.mem (vid (lp_tmp x86_linearization_params)) (magic_variables p).
+  set vtmp := var_tmp aparams.
+  have vtmp_not_magic : ~~ Sv.mem vtmp (magic_variables p).
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
-  have p_call : sem_export_call p (extra_free_registers cparams) (vid (lp_tmp x86_linearization_params)) rip m fn args m' res.
+  have p_call :
+    sem_export_call p (extra_free_registers cparams) vtmp rip m fn args m' res.
   - apply: (merge_varmaps_export_callP checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
     case: get_fundef => // fd /assertP /eqP Export.
     by exists fd.
-  have := linear_exportcallP h_x86_linearization_params lp_tmp_not_magic ok_lp p_call.
+  have := linear_exportcallP (hlparams ahyps) vtmp_not_magic ok_lp p_call.
   case => fd [] ok_fd Export lp_call.
   exists (tunneling.tunnel_lfundef fn fd); split.
   - exact: get_fundef_tunnel_program ok_tp ok_fd.
@@ -549,4 +575,3 @@ Qed.
 *)
 
 End PROOF.
-

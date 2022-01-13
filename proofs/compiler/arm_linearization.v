@@ -24,42 +24,51 @@
  * ----------------------------------------------------------------------- *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import sopn psem compiler compiler_proof.
-Require Import
-  x86_decl
-  x86_instr_decl
-  x86_extra
-  x86_linear_sem
-  x86_linearization_proof
-  x86_stack_alloc_proof.
-Require Import x86_params.
-Require lowering_proof.
+Require Import expr linearization.
+Require Import arm_decl arm_instr_decl arm_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Lemma x86_is_move_opP : forall op sz vx v,
-  is_move_op x86_params op = Some sz ->
-  exec_sopn (Oasm op) [:: vx] = ok v ->
-  List.Forall2 value_uincl v [:: vx].
-Proof.
-  by case=> // -[] []// []//= ws _ vx v _;
-    rewrite /exec_sopn /=;
-    t_xrbindP=> w ? /to_wordI [ws' [wx [hle -> ->]]];
-    rewrite /sopn_sem /=;
-    match goal with
-    | |- ?f (zero_extend _ _) = _ -> _ => rewrite /f
-    end;
-    t_xrbindP=> _ _ <- <-;
-    (constructor; last by constructor);
-    apply value_uincl_zero_ext.
-Qed.
 
-Definition x86_hyps : architecture_hyps x86_params :=
-  {| is_move_opP := x86_is_move_opP
-   ; lower_callP := lowering_proof.lower_callP
-   ; mov_ofsP := x86_mov_ofsP
-   ; mov_op := x86_mov_op
-   ; hlparams := h_x86_linearization_params
+(* Linear parameters specific to ARM M4. *)
+(* Read the definition in linearization.v for more information. *)
+
+Definition opts :=
+  {| args_size      := reg_size
+  ;  set_flags      := false
+  ;  is_conditional := false
+  ;  has_shift      := None
+  |}.
+
+Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
+  let rspg := Gvar rspi Slocal in
+  ([:: Lvar rspi ], Oarm (ADDI opts), [:: Pvar rspg; Pconst sz ]).
+
+Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
+  let rspg := Gvar rspi Slocal in
+  ([:: Lvar rspi ], Oarm (ADDI opts), [:: Pvar rspg; Pconst (-sz) ]).
+
+Definition arm_ensure_rsp_alignment (rspi : var_i) (al : wsize) :=
+  let p0 := Pvar (Gvar rspi Slocal) in
+  let p1 := Pconst (- wsize_size al) in
+  ([:: Lvar rspi ], Oarm (ANDI opts), [:: p0; p1 ]).
+
+Definition arm_lassign (x : lval) (ws : wsize) (e : pexpr) :=
+  let opts :=
+    {| args_size      := ws
+    ;  set_flags      := false
+    ;  is_conditional := false
+    ;  has_shift      := None
+    |} in
+  ([:: x ], Oarm (MOV opts), [:: e ]).
+
+Definition arm_linearization_params : linearization_params :=
+  {|
+    lp_tmp                  := "r0"%string;
+    lp_allocate_stack_frame := arm_allocate_stack_frame;
+    lp_free_stack_frame     := arm_free_stack_frame;
+    lp_ensure_rsp_alignment := arm_ensure_rsp_alignment;
+    lp_lassign              := arm_lassign;
   |}.

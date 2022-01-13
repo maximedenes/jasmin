@@ -23,26 +23,49 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-Require Import var compiler.
-Require arm_params arm_sem.
+From mathcomp Require Import all_ssreflect all_algebra.
+From CoqWord Require Import ssrZ.
+Require Import
+  expr
+  memory_model
+  psem
+  stack_alloc_proof_2.
+Require Import arm_decl arm_stack_alloc.
 
-Require ExtrOcamlBasic.
-Require ExtrOcamlString.
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
 
-Extraction Inline ssrbool.is_left.
-Extraction Inline ssrbool.predT ssrbool.pred_of_argType.
-Extraction Inline ssrbool.idP.
+Section ARM_PROOF.
 
-Extraction Inline utils.assert.
-Extraction Inline utils.Result.bind.
+  Context
+    (P' : sprog)
+    (P'_globs : P'.(p_globs) = [::]).
 
-Extract Constant strings.ascii_beq => "Char.equal".
-Extract Constant strings.ascii_cmp => "(fun x y -> let c = Char.compare x y in if c = 0 then Datatypes.Eq else if c < 0 then Datatypes.Lt else Datatypes.Gt)".
+  Lemma addiP s1 e i x ofs w s2 :
+    sem_pexpr [::] s1 e >>= to_pointer = ok i ->
+    write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
+    sem_i P' w s1 (addi x e ofs) s2.
+  Proof.
+    move=> he hx.
+    apply Eopn.
+    rewrite /sem_sopn /= P'_globs /exec_sopn /=.
+    move: he.
+    t_xrbindP=> _ -> /= -> /=.
+    by rewrite hx.
+  Qed.
 
-Cd  "lang/ocaml".
+End ARM_PROOF.
 
-Extraction Blacklist String List Nat Utils Var Array.
-
-Separate Extraction utils sopn expr sem arm_sem.arm_prog arm_instr_decl arm_params compiler.
-
-Cd  "../..".
+Lemma arm_mov_ofsP (P': sprog) s1 e i x ofs w vpk s2 ins :
+  P'.(p_globs) = [::] ->
+  sem_pexpr [::] s1 e >>= to_pointer = ok i ->
+  arm_mov_ofs x vpk e ofs = Some ins ->
+  write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
+  sem_i P' w s1 ins s2.
+Proof.
+  move=> P'_globs he.
+  rewrite /arm_mov_ofs.
+  move=> [<-].
+  by apply addiP.
+Qed.

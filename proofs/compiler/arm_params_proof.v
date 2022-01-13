@@ -24,42 +24,57 @@
  * ----------------------------------------------------------------------- *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import sopn psem compiler compiler_proof.
+Require Import arch_extra sopn psem compiler compiler_proof utils.
 Require Import
-  x86_decl
-  x86_instr_decl
-  x86_extra
-  x86_linear_sem
-  x86_linearization_proof
-  x86_stack_alloc_proof.
-Require Import x86_params.
-Require lowering_proof.
+  arm_decl
+  arm_instr_decl
+  arm_extra
+  arm_linearization_proof
+  arm_params
+  arm_stack_alloc_proof.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Lemma x86_is_move_opP : forall op sz vx v,
-  is_move_op x86_params op = Some sz ->
-  exec_sopn (Oasm op) [:: vx] = ok v ->
-  List.Forall2 value_uincl v [:: vx].
+Lemma arm_move_op op sz :
+  is_move_op arm_params op = Some sz
+  -> let
+       opts := {| args_size := sz
+               ;  set_flags := false
+               ;  is_conditional := false
+               ;  has_shift := None
+               |}
+     in
+     op = BaseOp (None, MOV opts).
 Proof.
-  by case=> // -[] []// []//= ws _ vx v _;
-    rewrite /exec_sopn /=;
-    t_xrbindP=> w ? /to_wordI [ws' [wx [hle -> ->]]];
-    rewrite /sopn_sem /=;
-    match goal with
-    | |- ?f (zero_extend _ _) = _ -> _ => rewrite /f
-    end;
-    t_xrbindP=> _ _ <- <-;
-    (constructor; last by constructor);
-    apply value_uincl_zero_ext.
+  case: op => [[[|]][]|] // opts.
+  by case: opts => ? [] [] [] //= [<-].
 Qed.
 
-Definition x86_hyps : architecture_hyps x86_params :=
-  {| is_move_opP := x86_is_move_opP
-   ; lower_callP := lowering_proof.lower_callP
-   ; mov_ofsP := x86_mov_ofsP
-   ; mov_op := x86_mov_op
-   ; hlparams := h_x86_linearization_params
+Lemma arm_is_move_opP : forall op sz v vs,
+  is_move_op arm_params op = Some sz ->
+  exec_sopn (Oasm op) [:: v ] = ok vs ->
+  List.Forall2 value_uincl vs [:: v ].
+Proof.
+  move=> op sz v vs H.
+  rewrite (arm_move_op H).
+  rewrite /exec_sopn /=.
+  t_xrbindP=> w ? Hv.
+  elim: (to_wordI Hv) => sz' [w' [le_sz_sz' -> ->]].
+  rewrite /sopn_sem /=.
+  rewrite /drop_semi_nzcv /arm_MOV_semi /=.
+  rewrite /check_size_8_32.
+  case: (sz <= U32)%CMP => //=.
+  move=> [<-] <-.
+  constructor; last done.
+  exact: (value_uincl_zero_ext w' le_sz_sz').
+Qed.
+
+Definition arm_hyps : architecture_hyps arm_params :=
+  {| is_move_opP := arm_is_move_opP
+   ; lower_callP := TODO_ARM
+   ; mov_ofsP := arm_mov_ofsP
+   ; mov_op := arm_mov_op
+   ; hlparams := h_arm_linearization_params
   |}.

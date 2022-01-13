@@ -204,6 +204,7 @@ let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _) Arch_decl.asm_arg)) =
   match op with
   | Condt  _   -> assert false
   | Imm(ws, w) -> pp_imm (Conv.bi_of_word ws w)
+  | ImmZ _     -> assert false
   | Reg r      -> pp_register (rsize_of_wsize ws) r
   | Addr addr  -> pp_address addr
   | XReg r     -> pp_xmm_register ws r

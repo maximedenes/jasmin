@@ -176,7 +176,7 @@ Definition get_arg_value (st: x86_mem) (a: asm_arg) : value :=
   match a with
   | Reg r => Vword (asm_reg st r)
   | XReg r => Vword (asm_xreg st r)
-  | Condt _ | Imm _ _ | Addr _ => Vundef sword64 (refl_equal _)
+  | Condt _ | Imm _ _ | ImmZ _ | Addr _ => Vundef sword64 (refl_equal _)
   end.
 
 Definition get_arg_values st rs : values :=

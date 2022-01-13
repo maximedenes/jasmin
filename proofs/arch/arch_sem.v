@@ -153,15 +153,23 @@ Definition eval_JMP p dst (s: asm_state) : asm_result_state :=
   if get_fundef (asm_funcs p) fn is Some fd then
     let body := asm_fd_body fd in
     Let ip := find_label lbl body in
-    ok {| asm_m := s.(asm_m) ; asm_f := fn ; asm_c := body ; asm_ip := ip.+1 |}
+    ok
+      {| asm_m  := s.(asm_m)
+       ; asm_f  := fn
+       ; asm_c  := body
+       ; asm_ip := ip.+1 (* Jump to instruction immediately following lbl. *)
+      |}
   else type_error.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_Jcc lbl ct (s : asm_state) : asm_result_state :=
   Let b := eval_cond_mem s ct in
-  if b then
+  if b
+  then
+    (* Jump to instruction immediately following lbl. *)
     Let ip := find_label lbl s.(asm_c) in ok (st_write_ip ip.+1 s)
-  else ok (st_write_ip s.(asm_ip).+1 s).
+  else
+    ok (st_write_ip s.(asm_ip).+1 s).
 
 (* -------------------------------------------------------------------- *)
 Definition word_of_scale (n:nat) : pointer := wrepr Uptr (2%Z^n)%R.
@@ -190,6 +198,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
     | sword sz => ok (Vword (sign_extend sz w))  (* FIXME should we use sign of zero *)
     | _        => type_error
     end
+  | ImmZ z => ok (Vword (wrepr reg_size z))
   | Reg r     => ok (Vword (s.(asm_reg) r))
   | Addr addr =>
     let a := decode_addr s addr in

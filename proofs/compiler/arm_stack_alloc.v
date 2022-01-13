@@ -23,26 +23,24 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-Require Import var compiler.
-Require arm_params arm_sem.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import expr memory_model stack_alloc.
+Require Import arch_decl.
+Require Import arm_decl arm_instr_decl arm_extra.
 
-Require ExtrOcamlBasic.
-Require ExtrOcamlString.
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
 
-Extraction Inline ssrbool.is_left.
-Extraction Inline ssrbool.predT ssrbool.pred_of_argType.
-Extraction Inline ssrbool.idP.
+Definition addi x y ofs :=
+  let opts :=
+    {| args_size      := reg_size
+    ; set_flags       := false
+    ;  is_conditional := false
+    ;  has_shift      := None
+    |} in
+  Copn [:: x ] AT_none (Oarm (ADDI opts)) [:: y ; Pconst ofs ].
 
-Extraction Inline utils.assert.
-Extraction Inline utils.Result.bind.
-
-Extract Constant strings.ascii_beq => "Char.equal".
-Extract Constant strings.ascii_cmp => "(fun x y -> let c = Char.compare x y in if c = 0 then Datatypes.Eq else if c < 0 then Datatypes.Lt else Datatypes.Gt)".
-
-Cd  "lang/ocaml".
-
-Extraction Blacklist String List Nat Utils Var Array.
-
-Separate Extraction utils sopn expr sem arm_sem.arm_prog arm_instr_decl arm_params compiler.
-
-Cd  "../..".
+Definition arm_mov_ofs
+  (x : lval) (_ : vptr_kind) (y : pexpr) (ofs : Z) : option instr_r :=
+  Some (addi x y ofs).

@@ -79,14 +79,13 @@ End ASM_OP.
 Section PROG.
 
 Context
-  {reg xreg rflag cond asm_op extra_op}
-  {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}
-  (p: sprog)
-  (extra_free_registers: instr_info -> option var)
-  (reg_tmp : reg)
-  (global_data: pointer).
+  `{asm_e : asm_extra}
+  (p : sprog)
+  (extra_free_registers : instr_info -> option var)
+  (id_tmp : Ident.ident)
+  (global_data : pointer).
 
-Let var_tmp := to_var reg_tmp.
+Let var_tmp : var := {| vname := id_tmp; vtype := sword Uptr; |}.
 
 Definition valid_writefun (w: funname → Sv.t) (f: sfun_decl) : bool :=
   Sv.subset (write_fd p extra_free_registers var_tmp w f.2) (w f.1).
