@@ -24,23 +24,38 @@
  * ----------------------------------------------------------------------- *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem compiler_util compiler.
-Require Import allocation inline_proof dead_calls_proof
-               makeReferenceArguments_proof
-               array_copy array_copy_proof array_init_proof
-               unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof
-               array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof_2
-               lowering_proof
-               tunneling_proof
-               linearization_proof
-               x86_linearization_proof
-               x86_gen_proof
-               merge_varmaps_proof
-               psem_of_sem_proof.
+Require Import psem psem_facts compiler_util compiler.
+Require Import
+  allocation
+  inline_proof
+  dead_calls_proof
+  makeReferenceArguments_proof
+  array_copy
+  array_copy_proof
+  array_init_proof
+  unrolling_proof
+  constant_prop_proof
+  propagate_inline_proof
+  dead_code_proof
+  array_expansion
+  array_expansion_proof
+  remove_globals_proof
+  stack_alloc_proof_2
+  lowering_proof
+  tunneling_proof
+  linearization_proof
+  merge_varmaps_proof
+psem_of_sem_proof.
+Require Import
+  arch_decl
+  arch_extra
+  asm_gen_proof.
+Require Import
+  x86_gen_proof
+  x86_sem
+  x86_linearization_proof
+  x86_stack_alloc_proof.
 Import Utf8.
-Import arch_decl.
-Import psem_facts x86_sem x86_gen.
-Require x86_stack_alloc_proof x86_linearization_proof.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -354,7 +369,10 @@ Lemma compiler_back_end_to_x86_meta entries (p: sprog) (xp: x86_prog) :
     & asm_globs xp = p.(p_extra).(sp_globs)
   ].
 Proof.
-  rewrite /compiler_back_end_to_x86; t_xrbindP => tp /compiler_back_end_meta[] A B C /assemble_progP/=[] D E F G.
+  rewrite /compiler_back_end_to_x86.
+  t_xrbindP => tp /compiler_back_end_meta[] A B C D.
+  have [E F H] := assemble_progP D.
+  rewrite /to_var (assemble_prog_RSP D).
   by rewrite -B -C.
 Qed.
 
@@ -379,7 +397,11 @@ Proof.
   move => fd ok_fd.
   move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP Export.
   split; last by rewrite Export.
-  move: ok_fd => /(get_fundef_p' ok_lp) /(get_fundef_tunnel_program ok_tp) /(ok_get_fundef ok_xp)[] fd' ok_fd'.
+  move: ok_fd =>
+    /(get_fundef_p' ok_lp)
+    /(get_fundef_tunnel_program ok_tp)
+    /(ok_get_fundef assemble_progP ok_xp)
+    [fd' ok_fd'].
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
   move: ok_fd' => /S /=.
   rewrite /allocatable_stack.
@@ -455,6 +477,14 @@ Proof.
   exact: ok_callee_saved.
 Qed.
 
+(* FIXME: where does this go? *)
+Lemma reg_size_neq_xreg_size : reg_size != xreg_size.
+Proof. done. Qed.
+
+Lemma exec_sopn_mov_op (w : word Uptr) :
+  let op := Oasm (BaseOp (None, x86_instr_decl.MOV)) in
+  exec_sopn op [:: Vword w ] = ok [:: Vword w ].
+
 Lemma compiler_back_end_to_x86P entries (p: sprog) (xp: x86_prog) (rip: word Uptr) (m m':mem) (fn: funname) args res :
   compiler_back_end_to_x86 cparams entries p = ok xp →
   fn \in entries →
@@ -480,37 +510,70 @@ Lemma compiler_back_end_to_x86P entries (p: sprog) (xp: x86_prog) (rip: word Upt
 Proof.
   rewrite /compiler_back_end_to_x86; t_xrbindP => lp ok_lp ok_xp ok_fn p_call.
   have [ fd [] ok_fd fd_export lp_call ] := compiler_back_endP ok_lp ok_fn p_call.
-  have [ xd -> ] := ok_get_fundef ok_xp ok_fd.
-  have [ disj_rip ok_lp_rsp ok_globs get_xfun ] := assemble_progP ok_xp.
+  have [xd ->] := ok_get_fundef assemble_progP ok_xp ok_fd.
+  have ok_lp_rsp := assemble_prog_RSP ok_xp.
+  have [ disj_rip ok_globs get_xfun ] := assemble_progP ok_xp.
   case/assemble_fdI => rsp_not_arg /allP ok_callee_saved [] xbody [] xargs [] xres [] ok_xbody ok_xargs ok_xres -> {xd}.
   eexists; split; first reflexivity.
   - by rewrite fd_export.
-  move => xm args' ok_rip ok_rsp M /= ok_args' ok_args.
-  set s := estate_of_x86_mem (top_stack m) (lp_rip lp) xm.
-  assert (LM := lom_eqv_estate_of_x86_mem (top_stack m) xm disj_rip).
-  assert (XM := get_var_vmap_of_x86_mem (top_stack m) (lp_rip lp) xm).
-  have wf_s : wf_vm s.(evm) by exact: wf_vmap_of_x86_mem.
+  move=> xm args' ok_rip ok_rsp M /= ok_args' ok_args.
+  set s :=
+    estate_of_asm_mem
+      (asm_e := x86_extra.x86_extra)
+      (top_stack m)
+      (lp_rip lp)
+      (lp_rsp lp)
+      xm.
+  assert (LM :=
+    lom_eqv_estate_of_asm_mem
+      reg_size_neq_xreg_size
+      (top_stack m)
+      (lp_rsp lp)
+      xm
+      disj_rip).
+  assert (XM :=
+    get_var_vmap_of_asm_mem
+      reg_size_neq_xreg_size
+      (top_stack m)
+      (lp_rip lp)
+      (lp_rsp lp)
+      xm).
+  have wf_s : wf_vm s.(evm) by exact: wf_vmap_of_asm_mem.
   have := lp_call _ _ _ wf_s _ M _ ok_args.
   case.
   - have := XM (ARReg x86_decl.RSP).
-    rewrite /= ok_lp_rsp /get_var /=.
+    rewrite /= -ok_lp_rsp /get_var /=.
     case: _.[_]%vmap => [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?; subst => /=.
     by rewrite pword_of_wordE ok_rsp => ->.
   - rewrite -ok_args'.
     apply: mapM_factorization ok_xargs.
-    by move => x r /asm_typed_reg_of_varI ->.
+    rewrite /typed_reg_of_vari /=.
+    move => [x _] r /= h.
+    by rewrite (asm_typed_reg_of_varI (asm_e := x86_extra.x86_extra) h).
   - case: LM => _ Y _ _ _ _.
     move: Y; rewrite /get_var /=.
-    case: _.[_]%vmap => [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?; subst => /=.
+    rewrite /mk_ptr /=.
+    case: _.[_]%vmap => /= [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?; subst => /=.
     by rewrite pword_of_wordE => ->.
   - move => /=.
     apply/andP; split.
     + by rewrite (XM (ARReg x86_decl.RAX)).
     apply/allP => x /ok_callee_saved.
+    rewrite /is_arreg /=.
     case hx: asm_typed_reg_of_var => [ [ r | | ] | ] // _.
     by rewrite (asm_typed_reg_of_varI hx) XM.
   move => _wt_largs [] vm' [] lm' [] res' [] {} lp_call M' ok_res' res_res' _wt_res'.
-  have := x86gen_exportcall ok_xp lp_call _ LM.
+  Check
+    asm_gen_exportcall
+      (asm_e := x86_extra.x86_extra)
+      eval_assemble_cond
+      reg_size_neq_xreg_size
+      assemble_extra_op
+      _
+      assemble_progP
+      ok_xp
+      lp_call _ LM.
+  Search x86_mov_eop.
   case.
   - apply/allP => _ /in_map[] r _ ->.
     by rewrite (XM (ARReg r)).

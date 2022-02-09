@@ -54,15 +54,24 @@ Class arch_decl (reg xreg rflag cond : Type) :=
   ; toS_r     :> ToString (sword reg_size) reg
   ; toS_x     :> ToString (sword xreg_size) xreg
   ; toS_f     :> ToString sbool rflag
-}.
+  }.
 
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
+
+Definition mk_ptr `{arch_decl} name :=
+  {| vtype := sword Uptr; vname := name; |}.
 
 (* FIXME ARM : Try to not use this projection *)
 Definition reg_t   {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := reg.
 Definition xreg_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := xreg.
 Definition rflag_t {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := rflag.
 Definition cond_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := cond.
+
+Definition wreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
+  sem_t (sword reg_size).
+
+Definition wxreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
+  sem_t (sword xreg_size).
 
 Section DECL.
 
@@ -78,12 +87,12 @@ Record reg_address : Type := mkAddress {
 }.
 
 Variant address :=
-  | Areg of reg_address
-  | Arip of pointer.  
-   
+| Areg of reg_address
+| Arip of pointer.
+
 (* -------------------------------------------------------------------- *)
 
-Definition oeq_reg (x y:option reg_t) := 
+Definition oeq_reg (x y:option reg_t) :=
   @eq_op (option_eqType ceqT_eqType) x y.
 
 Definition reg_address_beq (addr1: reg_address) addr2 :=
@@ -102,6 +111,8 @@ Qed.
 Definition reg_address_eqMixin := Equality.Mixin reg_address_eq_axiom.
 Canonical reg_address_eqType := EqType reg_address reg_address_eqMixin.
 
+(* -------------------------------------------------------------------- *)
+
 Definition address_beq (addr1: address) addr2 :=
   match addr1, addr2 with
   | Areg ra1, Areg ra2 => ra1 == ra2
@@ -117,10 +128,8 @@ Qed.
 Definition address_eqMixin := Equality.Mixin address_eq_axiom.
 Canonical address_eqType := EqType address address_eqMixin.
 
-Definition wreg  := sem_t (sword reg_size).
-Definition wxreg := sem_t (sword xreg_size).
 
-Definition rflags : list rflag := enum cfinT_finType.
+(* -------------------------------------------------------------------- *)
 
 Variant asm_arg : Type :=
   | Condt  of cond_t
@@ -488,6 +497,24 @@ Record asm_prog : Type :=
   ; asm_funcs : seq (funname * asm_fundef) }.
 
 End DECL.
+
+Section FIXME_DECL.
+  Context `{arch : arch_decl}.
+
+  Canonical reg_eqType := @ceqT_eqType _ (@_eqC reg_t _).
+  Canonical reg_finType := @cfinT_finType _ (@_finC _ reg_t _).
+  Definition registers : seq reg_t := cenum.
+
+  Canonical xreg_eqType := @ceqT_eqType _ (@_eqC xreg_t _).
+  Canonical xreg_finType := @cfinT_finType _ (@_finC _ xreg_t _).
+  Definition xregisters : seq xreg_t := cenum.
+
+  Canonical rflag_eqType := @ceqT_eqType _ (@_eqC rflag_t _).
+  Canonical rflag_finType := @cfinT_finType _ (@_finC _ rflag_t _).
+  Definition rflags : seq rflag_t := cenum.
+End FIXME_DECL.
+
+(* -------------------------------------------------------------------- *)
 
 Variant rflagv := Def of bool | Undef.
 Scheme Equality for rflagv.

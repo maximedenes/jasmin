@@ -185,23 +185,31 @@ Canonical xreg_finType :=
   Eval hnf in FinType xmm_register xreg_finMixin.
 
 (* -------------------------------------------------------------------- *)
+#[ local ]
 Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
 
+#[ local ]
 Lemma rflags_fin_axiom : Finite.axiom rflags.
 Proof. by case. Qed.
 
+#[ local ]
 Definition rflag_choiceMixin :=
   PcanChoiceMixin (FinIsCount.pickleK rflags_fin_axiom).
+#[ local ]
 Canonical rflag_choiceType :=
   Eval hnf in ChoiceType rflag rflag_choiceMixin.
 
+#[ local ]
 Definition rflag_countMixin :=
   PcanCountMixin (FinIsCount.pickleK rflags_fin_axiom).
+#[ local ]
 Canonical rflag_countType :=
   Eval hnf in CountType rflag rflag_countMixin.
 
+#[ local ]
 Definition rflag_finMixin :=
   FinMixin rflags_fin_axiom.
+#[ local ]
 Canonical rflag_finType :=
   Eval hnf in FinType rflag rflag_finMixin.
 
