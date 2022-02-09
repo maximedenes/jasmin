@@ -534,7 +534,9 @@ Variant asmsem_exportcall
                     ; asm_ip := size (asm_fd_body fd)
                    |} in
          asmsem p s s'
-      -> (forall r, r \in callee_saved -> preserved_register r m m')
+      -> (forall r,
+           r \in (callee_saved : seq ceqT_eqType)
+           -> preserved_register r m m')
       -> asmsem_exportcall callee_saved p fn m m'.
 
 End SEM.

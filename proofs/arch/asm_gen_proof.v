@@ -382,21 +382,6 @@ Proof.
   by rewrite wandC wand0 wxor0.
 Qed.
 
-(* FIXME: Where does this go? *)
-Context (reg_size_neq_xreg_size : reg_size != xreg_size).
-
-Lemma to_var_reg_neq_xreg (r : reg_t) (x : xreg_t) :
-  to_var r <> to_var x.
-Proof.
-  move=> [] hsize _. move: hsize. apply/eqP. exact: reg_size_neq_xreg_size.
-Qed.
-
-Lemma sword_reg_neq_xreg :
-  sword reg_size != sword xreg_size.
-Proof.
-  apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
-Qed.
-
 Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
   lom_eqv rip m s ->
   check_arg_dest ad ty ->
@@ -1187,7 +1172,7 @@ Proof.
     + by apply word_uincl_word_extend.
     by rewrite word_extend_big // hsz.
 
-  - have := @to_var_reg_neq_xreg r r'.
+  - have := to_var_reg_neq_xreg (r := r) (x := r').
     move=> /eqP /negbTE ->.
     exact: eqx.
 
@@ -1403,7 +1388,7 @@ Proof.
   move=> r hr.
 
   have {} hr : to_var r \in map to_var callee_saved.
-  - apply/in_map. exists r => //. by apply/InP.
+  - apply/in_map. exists r => //. by apply/(InP (T := ceqT_eqType)).
 
   have /saved_registers E :
     Sv.In (to_var r) (sv_of_list to_var callee_saved).
@@ -1514,9 +1499,9 @@ Definition vmap_of_asm_mem
                          else pundef_addr sbool in
   let vm := vmap0.[mk_ptr rsp <- ok (pword_of_word sp)]
                  .[mk_ptr rip <- ok (pword_of_word (asm_rip s))]%vmap in
-  let vm := vmap_set_vars (T := reg_eqType) pword_of_reg vm registers in
-  let vm := vmap_set_vars (T := xreg_eqType) pword_of_xreg vm xregisters in
-  let vm := vmap_set_vars (T := rflag_eqType) pbool_of_flag vm rflags in
+  let vm := vmap_set_vars (t := sword _) pword_of_reg vm registers in
+  let vm := vmap_set_vars (t := sword _) pword_of_xreg vm xregisters in
+  let vm := vmap_set_vars (t := sbool) pbool_of_flag vm rflags in
   vm.
 
 Lemma wf_vmap_of_asm_mem sp rip rsp s :
@@ -1554,7 +1539,7 @@ Proof.
   rewrite /vmap_of_asm_mem.
   case: r => r.
 
-  have h := sword_reg_neq_xreg.
+  assert (h := sword_reg_neq_xreg).
 
   all: repeat (rewrite get_var_vmap_set_vars_other_type; last done).
   all: rewrite get_var_vmap_set_vars_finite //=.
@@ -1573,9 +1558,11 @@ Proof.
   case => rip_not_reg rip_not_xreg rip_not_flag.
   split => //=.
   - rewrite /vmap_of_asm_mem.
-    repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
+    rewrite get_var_vmap_set_vars_other_type //.
+    rewrite get_var_vmap_set_vars_other_type;
+      last exact: sword_reg_neq_xreg.
     rewrite get_var_vmap_set_vars_other; last first.
-    + apply/allP => r _; apply/eqP; exact: rip_not_reg.
+    + apply/allP => r _; apply/eqP. exact: rip_not_reg.
     by rewrite get_var_eq.
   - move => r v.
     by rewrite (get_var_vmap_of_asm_mem _ _ _ _ (ARReg r)) => /= /ok_inj <-.

@@ -47,13 +47,14 @@ Definition rtype {t T} `{ToString t T} := t.
 
 (* ==================================================================== *)
 
-Class arch_decl (reg xreg rflag cond : Type) := 
-  { reg_size  : wsize (* [reg_size] is also used as the size of pointers *)
+Class arch_decl (reg xreg rflag cond : Type) :=
+  { reg_size : wsize (* [reg_size] is also used as the size of pointers *)
   ; xreg_size : wsize
-  ; cond_eqC  :> eqTypeC cond
-  ; toS_r     :> ToString (sword reg_size) reg
-  ; toS_x     :> ToString (sword xreg_size) xreg
-  ; toS_f     :> ToString sbool rflag
+  ; cond_eqC :> eqTypeC cond
+  ; toS_r :> ToString (sword reg_size) reg
+  ; toS_x :> ToString (sword xreg_size) xreg
+  ; toS_f :> ToString sbool rflag
+  ; reg_size_neq_xreg_size : reg_size != xreg_size
   }.
 
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
@@ -76,6 +77,13 @@ Definition wxreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :
 Section DECL.
 
 Context {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond}.
+
+Lemma sword_reg_neq_xreg :
+  sword reg_size != sword xreg_size.
+Proof.
+  apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
+Qed.
+
 
 (* -------------------------------------------------------------------- *)
 (* disp + base + scale × offset *)
@@ -498,21 +506,15 @@ Record asm_prog : Type :=
 
 End DECL.
 
-Section FIXME_DECL.
+Section ENUM.
   Context `{arch : arch_decl}.
 
-  Canonical reg_eqType := @ceqT_eqType _ (@_eqC reg_t _).
-  Canonical reg_finType := @cfinT_finType _ (@_finC _ reg_t _).
   Definition registers : seq reg_t := cenum.
 
-  Canonical xreg_eqType := @ceqT_eqType _ (@_eqC xreg_t _).
-  Canonical xreg_finType := @cfinT_finType _ (@_finC _ xreg_t _).
   Definition xregisters : seq xreg_t := cenum.
 
-  Canonical rflag_eqType := @ceqT_eqType _ (@_eqC rflag_t _).
-  Canonical rflag_finType := @cfinT_finType _ (@_finC _ rflag_t _).
   Definition rflags : seq rflag_t := cenum.
-End FIXME_DECL.
+End ENUM.
 
 (* -------------------------------------------------------------------- *)
 

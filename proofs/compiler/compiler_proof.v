@@ -45,7 +45,7 @@ Require Import
   tunneling_proof
   linearization_proof
   merge_varmaps_proof
-psem_of_sem_proof.
+  psem_of_sem_proof.
 Require Import
   arch_decl
   arch_extra
@@ -55,6 +55,7 @@ Require Import
   x86_gen_proof
   x86_sem
   x86_linearization_proof
+  x86_linear_sem
   x86_stack_alloc_proof.
 Import Utf8.
 
@@ -66,7 +67,13 @@ Record architecture_hyps (aparams : architecture_params) := mk_ahyps {
   is_move_opP : forall op vx v,
     aparams.(is_move_op) op->
     exec_sopn (Oasm op) [:: vx] = ok v ->
-    List.Forall2 value_uincl v [:: vx]
+    List.Forall2 value_uincl v [:: vx];
+
+  (* FIXME: How does this relate to is_move_opP? *)
+  exec_sopn_mov_op :
+    forall (w : word Uptr),
+      let op := Oasm (BaseOp (None, x86_mov_op)) in
+      exec_sopn op [:: Vword w ] = ok [:: Vword w ];
 }.
 
 (* Parameters specific to the architecture. *)
@@ -85,11 +92,13 @@ Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
 Section IS_MOVE_OP.
 
-Context (is_move_op : asm_op_t -> bool).
-Hypothesis is_move_opP : forall op vx v,
-  is_move_op op->
-  exec_sopn (Oasm op) [:: vx] = ok v ->
-  List.Forall2 value_uincl v [:: vx].
+Context
+  (is_move_op : asm_op_t -> bool)
+  (is_move_opP :
+    forall op vx v,
+      is_move_op op
+      -> exec_sopn (Oasm op) [:: vx ] = ok v
+      -> List.Forall2 value_uincl v [:: vx ]).
 
 Lemma unroll1P (fn: funname) (p p':uprog) ev mem va va' mem' vr:
   unroll1 is_move_op p = ok p' ->
@@ -478,21 +487,6 @@ Proof.
   exact: ok_callee_saved.
 Qed.
 
-(* FIXME: where does this go? *)
-Lemma reg_size_neq_xreg_size : reg_size != xreg_size.
-Proof. done. Qed.
-
-Lemma exec_sopn_mov_op (w : word Uptr) :
-  let op :=
-    Oasm
-      (asm_op := x86_extra.x86_extended_op)
-      (BaseOp (None, x86_instr_decl.MOV Uptr))
-  in
-  exec_sopn op [:: Vword w ] = ok [:: Vword w ].
-Proof.
-  by rewrite /exec_sopn /= zero_extend_u.
-Qed.
-
 Lemma compiler_back_end_to_x86P
   entries
   (p : sprog)
@@ -552,7 +546,6 @@ Proof.
 
   assert (LM :=
     lom_eqv_estate_of_asm_mem
-      reg_size_neq_xreg_size
       (top_stack m)
       (lp_rsp lp)
       xm
@@ -560,7 +553,6 @@ Proof.
 
   assert (XM :=
     get_var_vmap_of_asm_mem
-      reg_size_neq_xreg_size
       (top_stack m)
       (lp_rip lp)
       (lp_rsp lp)
@@ -604,9 +596,8 @@ Proof.
   have :=
     asm_gen_exportcall
       eval_assemble_cond
-      reg_size_neq_xreg_size
       assemble_extra_op
-      exec_sopn_mov_op
+      (exec_sopn_mov_op ahyps)
       assemble_progP
       ok_xp
       lp_call
@@ -861,4 +852,3 @@ Qed.
 *)
 
 End PROOF.
-

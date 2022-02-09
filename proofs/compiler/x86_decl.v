@@ -185,7 +185,6 @@ Canonical xreg_finType :=
   Eval hnf in FinType xmm_register xreg_finMixin.
 
 (* -------------------------------------------------------------------- *)
-(* FIXME: Are these needed? *)
 #[ local ]
 Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
 
@@ -331,9 +330,10 @@ Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
 
 Instance x86_decl : arch_decl register xmm_register rflag condt :=
-  { reg_size  := U64
+  { reg_size := U64
   ; xreg_size := U256
-  ; toS_r     := x86_reg_toS
-  ; toS_x     := x86_xreg_toS
-  ; toS_f     := x86_rflag_toS
+  ; toS_r := x86_reg_toS
+  ; toS_x := x86_xreg_toS
+  ; toS_f := x86_rflag_toS
+  ; reg_size_neq_xreg_size := refl_equal
   }.

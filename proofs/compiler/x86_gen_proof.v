@@ -172,7 +172,7 @@ Proof.
       rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc_op (XOR sz) => hlo.
       rewrite /SF_of_word msb0.
-      by apply: (@compile_lvals _ _ _ _ _ _ _ _ erefl
+      by apply: (@compile_lvals _ _ _ _ _ _ _ _
              rip ii m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
@@ -196,7 +196,7 @@ Proof.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256.
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64.
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz) => hlo.
-    by apply: (@compile_lvals _ _ _ _ _ _ _ _ erefl
+    by apply: (@compile_lvals _ _ _ _ _ _ _ _
                rip ii m lvs m' s [:: a0; XReg r; XReg r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)
@@ -213,15 +213,16 @@ Proof.
       {asm_args} [asm_args|//] _ [<-] _ /assertP /andP [hca hcd] <- <- hlow.
     have {hci} hch := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
     have [s' hwm hlow'] :=
-      compile_lvals (asm_e:=x86_extra) erefl
+      compile_lvals (asm_e:=x86_extra)
        (id_out := [:: E 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
     exists s'; last done.
     move: hca; rewrite /check_sopn_args /= => /and4P [] hE1 hE2 hE3 _.
 Opaque eval_arg_in_v check_i_args_kinds.
     rewrite /eval_op /exec_instr_op /= /eval_instr_op /= hch.
-    have [vh' [-> /= hvh']]:= check_sopn_arg_sem_eval eval_assemble_cond hlow hE2 hvh hwh.
-    have [v1 [/= -> hv1 /=]] :=
-       check_sopn_arg_sem_eval eval_assemble_cond hlow hE3 refl_equal (truncate_word_u _).
+    have [vh' -> /= hvh'] :=
+      check_sopn_arg_sem_eval eval_assemble_cond hlow hE2 hvh hwh.
+    have [v1 /= -> hv1 /=] :=
+      check_sopn_arg_sem_eval eval_assemble_cond hlow hE3 refl_equal (truncate_word_u _).
 Transparent eval_arg_in_v check_i_args_kinds.
     move: hE1; rewrite /check_sopn_arg /=.
     case: oseq.onth => // a.
@@ -268,7 +269,8 @@ Transparent eval_arg_in_v check_i_args_kinds.
   rewrite /check_sopn_args /= andbT => hca1.
   rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
   rewrite /= in hidc;rewrite hidc.
-  have [v' /= [-> /= ->] /=]:= check_sopn_arg_sem_eval eval_assemble_cond hlo hca1 hva htwa.
+  have [v' /= -> /= -> /=] :=
+    check_sopn_arg_sem_eval eval_assemble_cond hlo hca1 hva htwa.
   move: hcd; rewrite /check_sopn_dests /= /check_sopn_dest /= => /andP -[].
   case ok_y: xreg_of_var => [y|//]; move /xreg_of_varI in ok_y.
   rewrite andbT => /eqP ? _; subst a0.
