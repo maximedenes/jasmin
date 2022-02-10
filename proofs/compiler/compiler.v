@@ -24,7 +24,7 @@
  * ----------------------------------------------------------------------- *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import arch_decl arch_extra expr.
+Require Import expr.
 Import ZArith.
 Require merge_varmaps.
 Require Import
@@ -44,6 +44,10 @@ Require Import
   stack_alloc
   linearization
   tunneling.
+Require Import
+  arch_decl
+  arch_extra
+  asm_gen.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -358,7 +362,9 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
 
 Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
   let callee_saved := sv_of_list to_var callee_saved in
-  compiler_back_end callee_saved entries p >>= assemble_prog aparams.
+  Let lp := compiler_back_end callee_saved entries p in
+  Let _ := check_assemble_prog lp in
+  assemble_prog aparams lp.
 
 Definition compile_prog_to_asm entries subroutines (p: prog): cexec asm_prog :=
   compiler_front_end entries subroutines p >>= compiler_back_end_to_asm entries.

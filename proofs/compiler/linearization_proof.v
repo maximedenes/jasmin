@@ -388,6 +388,7 @@ Context (mov_op : asm_op) (lparams : linearization_params).
 Let mov_eop : extended_op := BaseOp (None, mov_op).
 
 Record h_linearization_params := {
+  (* This can be proven with exec_sopn_mov_op *)
   spec_mov_op : forall lp (s: estate) fn pc x lbl ptr ii,
     vtype x == sword Uptr
     -> encode_label (label_in_lprog lp) (fn, lbl) = Some ptr

@@ -185,23 +185,31 @@ Canonical xreg_finType :=
   Eval hnf in FinType xmm_register xreg_finMixin.
 
 (* -------------------------------------------------------------------- *)
+#[ local ]
 Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
 
+#[ local ]
 Lemma rflags_fin_axiom : Finite.axiom rflags.
 Proof. by case. Qed.
 
+#[ local ]
 Definition rflag_choiceMixin :=
   PcanChoiceMixin (FinIsCount.pickleK rflags_fin_axiom).
+#[ local ]
 Canonical rflag_choiceType :=
   Eval hnf in ChoiceType rflag rflag_choiceMixin.
 
+#[ local ]
 Definition rflag_countMixin :=
   PcanCountMixin (FinIsCount.pickleK rflags_fin_axiom).
+#[ local ]
 Canonical rflag_countType :=
   Eval hnf in CountType rflag rflag_countMixin.
 
+#[ local ]
 Definition rflag_finMixin :=
   FinMixin rflags_fin_axiom.
+#[ local ]
 Canonical rflag_finType :=
   Eval hnf in FinType rflag rflag_finMixin.
 
@@ -327,10 +335,11 @@ Definition x86_callee_saved : seq register :=
   [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
 
 Instance x86_decl : arch_decl register xmm_register rflag condt :=
-  { reg_size  := U64
+  { reg_size := U64
   ; xreg_size := U256
-  ; toS_r     := x86_reg_toS
-  ; toS_x     := x86_xreg_toS
-  ; toS_f     := x86_rflag_toS
+  ; toS_r := x86_reg_toS
+  ; toS_x := x86_xreg_toS
+  ; toS_f := x86_rflag_toS
+  ; reg_size_neq_xreg_size := refl_equal
   ; callee_saved := x86_callee_saved
   }.

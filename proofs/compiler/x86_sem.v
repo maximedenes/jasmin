@@ -97,18 +97,5 @@ FIXME: this is mostly independent of the architecture and may be partially moved
 TODO: arguments / results are well-typed
  *)
 
-Definition preserved_register (r: register) : relation x86_mem :=
-  λ s1 s2,
-    s1.(asm_reg) r = s2.(asm_reg) r.
-
-Variant x86sem_exportcall (p: asm_prog) (fn: funname) (m m': asmmem) : Prop :=
-  | X86sem_exportcall (fd: x86_fundef) of
-      get_fundef p.(asm_funcs) fn = Some fd
-    & fd.(asm_fd_export)
-    & x86sem p
-             {| asm_m := m ; asm_f := fn ; asm_c := asm_fd_body fd ; asm_ip := 0 |}
-             {| asm_m := m' ; asm_f := fn ; asm_c := asm_fd_body fd ; asm_ip := size fd.(asm_fd_body) |}
-    & {in x86_callee_saved, ∀ r, preserved_register r m m'}
-.
-
-(* TODO: not sure there needs to be a file [x86_sem], [arch_sem] seems enough. *)
+Definition x86_callee_saved : seq register :=
+  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
