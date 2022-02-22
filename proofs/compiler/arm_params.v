@@ -25,36 +25,19 @@
  * ----------------------------------------------------------------------- *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import arch_extra sopn psem compiler.
+
+Require Import
+  arch_params.
+Require Import
+  arch_decl
+  arch_extra
+  asm_gen
+  asm_gen_proof.
 Require Import
   arm_decl
   arm_extra
-  arm_gen
-  arm_instr_decl
-  arm_stack_alloc
-  arm_linearization
-  arm_lowering.
+  arm_instr_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Definition arm_is_move_op (o : asm_op_t) :=
-  match o with
-  | BaseOp (None, MOV opts) =>
-      if set_flags opts || is_conditional opts || isSome (has_shift opts)
-      then None
-      else Some (args_size opts)
-  | _ =>
-      None
-  end.
-
-Definition arm_params :
-  architecture_params (asm_e := arm_extra) fresh_vars lowering_options :=
-  {| is_move_op := arm_is_move_op
-   ; mov_ofs := arm_mov_ofs
-   ; lparams := arm_linearization_params
-   ; lower_prog := arm_lower_prog
-   ; fvars_correct := arm_fvars_correct
-   ; assemble_prog := arm_assemble_prog
-  |}.

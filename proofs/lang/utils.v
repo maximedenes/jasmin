@@ -102,6 +102,11 @@ Definition cfinT_finType :=
   Eval hnf in 
     (@Finite.pack T ceqT_eqMixin cfinT_finMixin cfinT_choiceType _ (fun x => x) _ (fun x => x)).
 
+Lemma mem_cenum : cenum =i ceqT_eqType.
+Proof.
+  move=> x. rewrite -has_pred1 has_count. by rewrite cenumP.
+Qed.
+
 End FinType.
 
 Module FinMap.
@@ -327,7 +332,7 @@ Proof.
   by apply mem_head.
 Qed.
 
-Lemma mapM_size eT aT bT f xs ys :
+Lemma size_mapM eT aT bT f xs ys :
   @mapM eT aT bT f xs = ok ys ->
   size xs = size ys.
 Proof.
@@ -456,6 +461,16 @@ Proof.
   by constructor.
 Qed.
 
+Lemma mapM_factorization {aT bT cT eT fT} (f: aT → result fT bT) (g: aT → result eT cT) (h: bT → result eT cT) xs ys:
+  (∀ a b, f a = ok b → g a = h b) →
+  mapM f xs = ok ys →
+  mapM g xs = mapM h ys.
+Proof.
+  move => E.
+  elim: xs ys; first by case.
+  by move => x xs ih ys' /=; t_xrbindP => y /E -> ys /ih -> <-.
+Qed.
+
 Lemma mapM_assoc {eT} {aT:eqType} {bT cT} (f : aT * bT -> result eT (aT * cT)) l1 l2 a b :
   (forall x y, f x = ok y -> x.1 = y.1) ->
   mapM f l1 = ok l2 ->
@@ -520,6 +535,12 @@ Section FOLD2.
     | _     , _      => Error e
     end.
 
+  Lemma size_fold2 xs ys x0 v:
+    fold2 xs ys x0 = ok v -> size xs = size ys.
+  Proof.
+    by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
+  Qed.
+
 End FOLD2.
 
 (* ---------------------------------------------------------------- *)
@@ -562,7 +583,7 @@ Section MAP2.
     | _     , _      => Error e
     end.
 
-  Lemma mapM2_size ma mb mr :
+  Lemma size_mapM2 ma mb mr :
     mapM2 ma mb = ok mr ->
     size ma = size mb /\ size ma = size mr.
   Proof.
@@ -1455,8 +1476,6 @@ Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
-
-Ltac sinversion H := inversion H=>{H};subst.
 
 (* -------------------------------------------------------------------- *)
 Variant dup_spec (P : Prop) :=

@@ -193,7 +193,7 @@ Instance eqTC_xregister : eqTypeC xregister :=
 Instance finC_xregister : finTypeC xregister :=
   { cenumP := xregisters_fin_axiom }.
 
-Instance xreg_toS : ToString sword32 xregister :=
+Instance xreg_toS : ToString sword64 xregister :=
   { category      := "xregister"
   ; to_string     := string_of_xregister
   ; strings       := [seq (string_of_xregister x, x)
@@ -428,11 +428,24 @@ Definition shift_opZ (sk: shift_kind) (z: Z) (n: Z) : Z :=
   end.
 
 (* -------------------------------------------------------------------- *)
+
+Lemma arm_reg_size_neq_xreg_size : U32 != U64.
+Proof. done. Qed.
+
+(* -------------------------------------------------------------------- *)
+
+Definition arm_callee_saved : seq register := [::].
+
+(* -------------------------------------------------------------------- *)
 (* Architecture declaration. *)
 Instance arm_decl : arch_decl register xregister rflag condt :=
-  { reg_size  := U32
-  ; xreg_size := U32
-  ; toS_r     := reg_toS
-  ; toS_x     := xreg_toS
-  ; toS_f     := rflag_toS
+  { reg_size := U32
+  ; xreg_size := U64
+  ; cond_eqC := _
+  ; toS_r := reg_toS
+  ; toS_x := xreg_toS
+  ; toS_f := rflag_toS
+  ; reg_size_neq_xreg_size := arm_reg_size_neq_xreg_size
+  ; callee_saved := arm_callee_saved
+  ; ad_rsp := SP
   }.

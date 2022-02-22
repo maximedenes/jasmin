@@ -746,8 +746,9 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   a
 
 let split_live_ranges (f: 'info func) : unit func =
-  let f = Ssa.split_live_ranges true f in
-  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
+  Ssa.split_live_ranges true f
+
+let renaming (f: 'info func) : unit func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc, _tr, _fr =
     collect_equality_constraints
@@ -755,7 +756,9 @@ let split_live_ranges (f: 'info func) : unit func =
   let vars = normalize_variables vars eqc in
   let a = reverse_varmap nv vars |> subst_of_allocation vars in
   Subst.subst_func a f
-  |> Ssa.remove_phi_nodes
+
+let remove_phi_nodes (f: 'info func) : unit func =
+  Ssa.remove_phi_nodes f
 
 let is_subroutine = function
   | Subroutine _ -> true
@@ -911,7 +914,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
           | ra -> cnf |> add_conflicts (Sv.remove ra vars) ra
           | exception Not_found -> cnf
         in
-        cnf |> Sv.fold (add_conflicts vars) live |> Sv.fold (add_conflicts live) vars
+        cnf |> Sv.fold (add_conflicts vars) live
       ) funcs conflicts in
   let a = A.empty nv in
   List.iter (fun f -> allocate_forced_registers translate_var nv vars conflicts f a) funcs;

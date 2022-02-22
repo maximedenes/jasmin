@@ -227,7 +227,9 @@ module Env : sig
 
   val decls : env -> unit P.pmod_item list
     
-  val enter_file : env -> string -> (env * string) option
+  val add_from : env -> string * string -> env
+
+  val enter_file : env -> S.pident option -> L.t option -> string -> (env * string) option
   val exit_file  : env -> env
 
   val dependencies : env -> Path.t list
@@ -257,7 +259,9 @@ end = struct
   type loader = 
     { loaded : Path.t list (* absolute path *)
     ; idir   : Path.t      (* absolute initial path *)
-    ; dirs   : Path.t list } 
+    ; dirs   : Path.t list 
+    ; from   : (S.symbol, Path.t) Map.t
+    } 
 
   type env = {
     e_vars    : (S.symbol, P.pvar) Map.t;
@@ -276,14 +280,43 @@ end = struct
     ; e_exec    = []
     ; e_loader  = 
         { loaded = []
-        ; idir = Path.of_string (Sys.getcwd ())
-        ; dirs = [[]] }
+        ; idir   = Path.of_string (Sys.getcwd ())
+        ; dirs   = [[]]
+        ; from   = Map.empty
+        }
     }
 
-  let enter_file env filename = 
+
+  let add_from env (name, filename) = 
+    let p = Path.of_string filename in 
+    let ap = 
+      if Path.is_absolute p then p
+      else Path.concat env.e_loader.idir p in  
+    begin match Map.find name env.e_loader.from with
+    | ap' -> 
+      if ap <> ap' then 
+        hierror ~loc:Lnone ~kind:"compilation" "cannot bind %s with %s it is already bound to %s"
+          name (Path.to_string ap) (Path.to_string ap')
+    | exception Not_found -> ()
+    end;
+    {env with e_loader = 
+       { env.e_loader with from = Map.add name ap env.e_loader.from }}
+                            
+  let enter_file env from ploc filename = 
+    let ploc = match ploc with None -> Lnone | Some l -> Lone l in
     let p = Path.of_string filename in
     let loader = env.e_loader in
-    let current_dir = List.hd loader.dirs in
+    let current_dir =
+      match from with
+      | None -> List.hd loader.dirs
+      | Some name -> 
+          if Path.is_absolute p then 
+            hierror ~loc:ploc ~kind:"typing" 
+              "cannot use absolute path in from %s require \"%s\"" 
+                 (L.unloc name) filename;
+          try Map.find (L.unloc name) env.e_loader.from 
+          with Not_found -> 
+            rs_tyerror ~loc:(L.loc name) (string_error "unkown name %s" (L.unloc name)) in 
     let p = 
       if Path.is_absolute p then p
       else Path.concat current_dir p in
@@ -1519,7 +1552,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
           | Some vty -> vty
         in
         let x = flv ety in
-        let tg = P.AT_inline in
+        let tg = E.AT_inline in
         P.{ i_desc = Cassgn (x, tg, P.tbool, e);
             i_loc = L.of_loc c;
             i_info = ();
@@ -1544,11 +1577,11 @@ let arr_init xi =
   match x.P.v_ty with
   | P.Arr(ws, e) as ty ->
     let size =  let open P in (icnst (size_of_ws ws) ** e) in
-    P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init size)
+    P.Cassgn (Lvar xi, E.AT_inline, ty, P.Parr_init size)
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
 
-let cassgn_for (x: P.plval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pexpr) :
+let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
   (P.pexpr, unit) P.ginstr_r =
   Cassgn (x, tg, ty, e)
 
@@ -1616,11 +1649,11 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let es  = tt_exprs_cast env args tes in
       let is_inline = 
         match Annot.ensure_uniq1 "inline" Annot.none annot with
-        | Some () -> P.DoInline 
+        | Some () -> E.InlineFun
         | None -> 
           match f.P.f_cc with 
-          | P.Internal -> P.DoInline 
-          | P.Export | P.Subroutine _ -> P.NoInline in
+          | P.Internal -> E.InlineFun
+          | P.Export | P.Subroutine _ -> E.DoNotInline in
       env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, es) }, None) when 
@@ -1699,7 +1732,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let v = flv ety in
       let tg =
         P.(match v with
-            | Lvar v -> (match kind_i v with Inline -> AT_inline | _ -> AT_none)
+            | Lvar v -> (match kind_i v with Inline -> E.AT_inline | _ -> E.AT_none)
             | _ -> AT_none) in
       env, [mk_i (cassgn_for v tg ety e)]
         
@@ -1747,7 +1780,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let vx   = tt_var `AllVar env x in
       check_ty_eq ~loc:lx ~from:vx.P.v_ty ~to_:P.tint;
       let s    = tt_block env s in
-      let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
+      let d    = match d with `Down -> E.DownTo | `Up -> E.UpTo in
       env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
 
   | PIWhile (s1, c, s2) ->
@@ -1928,14 +1961,14 @@ let rec tt_item (env : Env.env) pt : Env.env =
   | S.PGlobal pg -> tt_global env (L.loc pt) pg
   | S.Pexec   pf -> 
     Env.Exec.push (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
-  | S.Prequire fs -> 
-    List.fold_left tt_file_loc env fs 
+  | S.Prequire (from, fs) -> 
+    List.fold_left (tt_file_loc from) env fs 
 
-and tt_file_loc env fname = 
-  fst (tt_file env (L.unloc fname))
+and tt_file_loc from env fname = 
+  fst (tt_file env from (Some (L.loc fname)) (L.unloc fname))
 
-and tt_file env fname = 
-  match Env.enter_file env fname with
+and tt_file env from loc fname = 
+  match Env.enter_file env from loc fname with
   | None -> env, []
   | Some(env, fname) -> 
     let ast   = Parseio.parse_program ~name:fname in
@@ -1945,7 +1978,7 @@ and tt_file env fname =
 
 (* -------------------------------------------------------------------- *)
 let tt_program (env : Env.env) (fname : string) =
-  let env, ast = tt_file env fname in
+  let env, ast = tt_file env None None fname in
   env, Env.decls env, ast
 
 (* FIXME :

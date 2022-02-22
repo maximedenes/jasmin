@@ -146,6 +146,12 @@ Definition wextend_type t1 t2 :=
     | _, _ => false
     end.
 
+Lemma to_bool_undef v :
+  to_bool v = undef_error -> v = undef_b.
+Proof.
+  by case: v => //= -[] // e _; rewrite (Eqdep_dec.UIP_refl_bool _ e).
+Qed.
+
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
@@ -165,6 +171,10 @@ Definition get_var (m:vmap) x :=
   on_vu (@pto_val (vtype x)) undef_error (m.[x]%vmap).
 
 #[ global ] Arguments get_var _%vmap_scope _.
+
+Lemma get_varE (m: vmap) x :
+  get_var m x = Let y := m.[x]%vmap in ok (pto_val y).
+Proof. by rewrite /get_var; case: _.[_]%vmap => // - []. Qed.
 
 Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
   if is_lvar x then get_var vm x.(gv)
@@ -214,15 +224,23 @@ Lemma get_var_set vm x v y :
   get_var vm.[x <- ok v] y = if x == y then ok (pto_val v) else get_var vm y.
 Proof. by rewrite {1}/get_var Fv.setP; case: eqP => // ?; subst. Qed.
 
+Lemma get_set_var vm x v vm' y :
+  set_var vm x v = ok vm' →
+  vm'.[y]%vmap = if x == y then pof_val (vtype y) v else vm.[y]%vmap.
+Proof.
+  apply: set_varP.
+  1: move => w ok_w.
+  2: case: x => - [] //= x _ /to_bool_undef ->{v}.
+  all: by move => <-{vm'}; rewrite Fv.setP; case: eqP => // ?; subst.
+Qed.
+
 Lemma get_var_set_var vm x v vm' y :
   set_var vm x v = ok vm' →
   get_var vm' y = if x == y then Let v' := pof_val (vtype y) v in ok (pto_val v') else get_var vm y.
 Proof.
-  apply: set_varP.
-  2: case: x => - [] //= x.
-  all: move => v' ok_v' <-{vm'}.
-  all: rewrite {1}/get_var /= Fv.setP; case: eqP => // ?; subst.
-  all: by rewrite /= ok_v'.
+  rewrite /get_var => /get_set_var ->.
+  case: eqP => // <-{y}.
+  by case: pof_val => // - [].
 Qed.
 
 Lemma get_var_eq x vm v : get_var vm.[x <- v] x = on_vu (pto_val (t:=x.(vtype))) undef_error v.
@@ -2053,12 +2071,6 @@ Proof.
   by move=> ? /ZleP ? /=; split => // ??; rewrite WArray.get_empty; case: ifP.
 Qed.
 
-Lemma to_bool_undef v :
-  to_bool v = undef_error -> v = undef_b.
-Proof. 
-  by case: v => //= -[] // e _; rewrite (Eqdep_dec.UIP_refl_bool _ e).
-Qed.
-
 Lemma type_of_val_bool v : type_of_val v = sbool ->
   v = undef_b \/ exists b, v = Vbool b.
 Proof.
@@ -2331,28 +2343,15 @@ Proof.
   by constructor.
 Qed.
 
-Definition set_of_var_i_seq : Sv.t → seq var_i → Sv.t :=
-  foldl (λ acc x, Sv.add (v_var x) acc).
-
-Lemma mem_set_of_var_i_seq x acc xs :
-  Sv.mem x (set_of_var_i_seq acc xs) = Sv.mem x acc || (x \in map v_var xs).
-Proof.
-  elim: xs acc.
-  - by move => acc; rewrite orbF.
-  move => y xs ih acc; rewrite /= ih{ih} inE eq_sym; case: eqP.
-  - by move => ->; rewrite SvP.add_mem_1 orbT.
-  by move => ?; rewrite SvP.add_mem_2.
-Qed.
-
-Corollary  get_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
+Lemma get_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
   vm_uincl vm1 vm2 ->
   mapM (fun x => get_var vm1 (v_var x)) xs = ok vs1 ->
   exists2 vs2,
     mapM (fun x => get_var vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
 Proof.
-  move => hvm; apply: (@get_vars_uincl_on (set_of_var_i_seq Sv.empty xs)).
+  move => hvm; apply: (@get_vars_uincl_on (sv_of_list v_var xs)).
   + exact: vm_uincl_vmap_uincl_on hvm.
-  by move => /= y hy; rewrite mem_set_of_var_i_seq map_f.
+  by move => /= y hy; rewrite sv_of_listE; apply map_f.
 Qed.
 
 (* can be merged with sem_pexpr_uincl_on *)
@@ -2396,17 +2395,17 @@ Lemma write_var_uincl_on' X x v1 v2 s1 s2 vm1 :
   evm s1 <=[X]  vm1 ->
   exists2 vm2 : vmap,evm s2 <=[Sv.add x X]  vm2 &
                      write_var x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
-    move=> hu hw hsub;pose vm1' : vmap :=
-      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
-    have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
-    have [vm2' [heq_on' ]]:= write_var_eq_on hw heq_on.
-    have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
-    move=> H /(write_var_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
-    by move=> ? hin;rewrite heq_on'.
-  Qed.
+Proof.
+  move=> hu hw hsub;pose vm1' : vmap :=
+    Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+  have heq_on :  evm s1 =[X] vm1'.
+  + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+  have [vm2' [heq_on' ]]:= write_var_eq_on hw heq_on.
+  have: vm_uincl vm1' vm1.
+  + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+  move=> H /(write_var_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
+  by move=> ? hin;rewrite heq_on'.
+Qed.
 
 Lemma write_lval_uincl_on gd X x v1 v2 s1 s2 vm1 :
   Sv.Subset (read_rv x) X ->
@@ -2415,17 +2414,17 @@ Lemma write_lval_uincl_on gd X x v1 v2 s1 s2 vm1 :
   evm s1 <=[X]  vm1 ->
   exists2 vm2 : vmap,evm s2 <=[Sv.union (vrv x) X]  vm2 &
                      write_lval gd x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
-    move=> hsubset hu hw hsub;pose vm1' : vmap :=
-      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
-    have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
-    have [vm2' [heq_on' ]]:= write_lval_eq_on hsubset hw heq_on.
-    have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
-    move=> H /(write_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu];eexists; last reflexivity.
-    by move=> ? hin;rewrite heq_on'.
-  Qed.
+Proof.
+  move=> hsubset hu hw hsub;pose vm1' : vmap :=
+    Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+  have heq_on :  evm s1 =[X] vm1'.
+  + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+  have [vm2' [heq_on' ]]:= write_lval_eq_on hsubset hw heq_on.
+  have: vm_uincl vm1' vm1.
+  + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+  move=> H /(write_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu];eexists; last reflexivity.
+  by move=> ? hin;rewrite heq_on'.
+Qed.
 
 Lemma write_lvals_uincl_on gd X x v1 v2 s1 s2 vm1 :
   Sv.Subset (read_rvs x) X ->
@@ -2434,35 +2433,35 @@ Lemma write_lvals_uincl_on gd X x v1 v2 s1 s2 vm1 :
   evm s1 <=[X]  vm1 ->
   exists2 vm2 : vmap,evm s2 <=[Sv.union (vrvs x) X]  vm2 &
                      write_lvals gd (with_vm s1 vm1) x v2 = ok (with_vm s2 vm2).
-  Proof.
-    move=> hsubset hu hw hsub;pose vm1' : vmap :=
-      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
-    have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
-    have [vm2' [heq_on' ]]:= write_lvals_eq_on hsubset hw heq_on.
-    have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
-    move=> H /(writes_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
-    by move=> ? hin;rewrite heq_on'.
-  Qed.
+Proof.
+  move=> hsubset hu hw hsub;pose vm1' : vmap :=
+    Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+  have heq_on :  evm s1 =[X] vm1'.
+  + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+  have [vm2' [heq_on' ]]:= write_lvals_eq_on hsubset hw heq_on.
+  have: vm_uincl vm1' vm1.
+  + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+  move=> H /(writes_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
+  by move=> ? hin;rewrite heq_on'.
+Qed.
 
-  Lemma write_lval_undef gd l v s1 s2 sz :
-    write_lval gd l v s1 = ok s2 ->
-    type_of_val v = sword sz ->
-    exists w: word sz, v = Vword w.
-  Proof.
-    move=> Hw Ht.
-    rewrite /type_of_val in Ht.
-    case: v Ht Hw=> //=.
-    + move=> sz' w [<-] _; by exists w.
-    case => //= ?? [<-] /=.
-    case: l => /=.
-    + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
-    + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
-    + by move => sz' v e; t_xrbindP; case: ifP.
-    + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-    by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-  Qed.
+Lemma write_lval_undef gd l v s1 s2 sz :
+  write_lval gd l v s1 = ok s2 ->
+  type_of_val v = sword sz ->
+  exists w: word sz, v = Vword w.
+Proof.
+  move=> Hw Ht.
+  rewrite /type_of_val in Ht.
+  case: v Ht Hw=> //=.
+  + move=> sz' w [<-] _; by exists w.
+  case => //= ?? [<-] /=.
+  case: l => /=.
+  + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
+  + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
+  + by move => sz' v e; t_xrbindP; case: ifP.
+  + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+  by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+Qed.
 
 (* ---------------------------------------------------------------- *)
 (* value inclusion on vmap except on X   *)

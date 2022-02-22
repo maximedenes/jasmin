@@ -24,7 +24,7 @@
  * ----------------------------------------------------------------------- *)
 
 Require Import var compiler.
-Require arm_params arm_sem.
+Require x86_params x86_sem.
 
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.
@@ -43,6 +43,6 @@ Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.
 
-Separate Extraction utils sopn expr sem arm_sem.arm_prog arm_instr_decl arm_params compiler.
+Separate Extraction utils sopn expr sem x86_sem.x86_prog x86_instr_decl x86_params compiler.
 
 Cd  "../..".

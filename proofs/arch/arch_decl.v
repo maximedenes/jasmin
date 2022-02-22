@@ -56,16 +56,22 @@ Definition rtype {t T} `{ToString t T} := t.
  * Parameterized by types for registers, extra registers, flags, conditions,
  * and shifts.
  *)
-Class arch_decl (reg xreg rflag cond: Type) :=
-  { reg_size        : wsize     (* Register size. Also used as pointer size. *)
-  ; xreg_size       : wsize     (* Extra registers size. *)
-  ; cond_eqC        :> eqTypeC cond
-  ; toS_r           :> ToString (sword reg_size) reg
-  ; toS_x           :> ToString (sword xreg_size) xreg
-  ; toS_f           :> ToString sbool rflag
+Class arch_decl (reg xreg rflag cond : Type) :=
+  { reg_size : wsize (* [reg_size] is also used as the size of pointers *)
+  ; xreg_size : wsize
+  ; cond_eqC :> eqTypeC cond
+  ; toS_r :> ToString (sword reg_size) reg
+  ; toS_x :> ToString (sword xreg_size) xreg
+  ; toS_f :> ToString sbool rflag
+  ; reg_size_neq_xreg_size : reg_size != xreg_size
+  ; callee_saved : seq reg
+  ; ad_rsp : reg
   }.
 
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
+
+Definition mk_ptr `{arch_decl} name :=
+  {| vtype := sword Uptr; vname := name; |}.
 
 (* FIXME ARM : Try to not use this projection *)
 Definition reg_t   {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := reg.
@@ -73,14 +79,21 @@ Definition xreg_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond}
 Definition rflag_t {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := rflag.
 Definition cond_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := cond.
 
+Definition wreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
+  sem_t (sword reg_size).
+
+Definition wxreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
+  sem_t (sword xreg_size).
+
 Section DECL.
 
 Context {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond}.
 
-Definition wreg  := sem_t (sword reg_size).
-Definition wxreg := sem_t (sword xreg_size).
-
-Definition rflags : list rflag := enum cfinT_finType.
+Lemma sword_reg_neq_xreg :
+  sword reg_size != sword xreg_size.
+Proof.
+  apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 (* Addresses.
@@ -120,6 +133,8 @@ Qed.
 
 Definition reg_address_eqMixin := Equality.Mixin reg_address_eq_axiom.
 Canonical reg_address_eqType := EqType reg_address reg_address_eqMixin.
+
+(* -------------------------------------------------------------------- *)
 
 Definition address_beq (addr1: address) addr2 :=
   match addr1, addr2 with
@@ -360,11 +375,11 @@ Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Inductive pp_asm_op_ext :=
+Variant pp_asm_op_ext :=
   | PP_error
   | PP_name
   | PP_iname   of wsize
-  | PP_iname2  of wsize & wsize
+  | PP_iname2  of string & wsize & wsize
   | PP_viname  of velem & bool (* long *)
   | PP_viname2 of velem & velem (* source and target element sizes *)
   | PP_ct      of asm_arg.
@@ -555,12 +570,21 @@ Variant asm_i : Type :=
 
 Definition asm_code := seq asm_i.
 
+(* Any register, used for function arguments and returned values. *)
+Variant asm_typed_reg :=
+  | ARReg of reg_t
+  | AXReg of xreg_t
+  | ABReg of rflag_t.
+
+Notation asm_typed_regs := (seq asm_typed_reg).
+
 Record asm_fundef := XFundef
   { asm_fd_align : wsize
-  ; asm_fd_arg   : asm_args   (* FIXME did we really want this *)
+  ; asm_fd_arg   : asm_typed_regs
   ; asm_fd_body  : asm_code
-  ; asm_fd_res   : asm_args   (* FIXME did we really want this *)
+  ; asm_fd_res   : asm_typed_regs
   ; asm_fd_export: bool
+  ; asm_fd_total_stack: Z
   }.
 
 Record asm_prog : Type :=
@@ -569,6 +593,17 @@ Record asm_prog : Type :=
   }.
 
 End DECL.
+
+Section ENUM.
+  Context `{arch : arch_decl}.
+
+  Definition registers : seq reg_t := cenum.
+
+  Definition xregisters : seq xreg_t := cenum.
+
+  Definition rflags : seq rflag_t := cenum.
+End ENUM.
+
 
 (* -------------------------------------------------------------------- *)
 (* Flag values. *)

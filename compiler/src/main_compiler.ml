@@ -104,7 +104,10 @@ let main () =
 
     let fname = !infile in
     let env, pprog, ast =
-      try Pretyping.tt_program Pretyping.Env.empty fname
+      try 
+        let env = Pretyping.Env.empty in
+        let env = List.fold_left Pretyping.Env.add_from env !Glob_options.idirs in
+        Pretyping.tt_program env fname
       with
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
@@ -211,7 +214,7 @@ let main () =
       end;
 
 
-    let lowering_vars = Lowering.(
+    let lowering_vars = X86_lowering.(
         let f ty n = 
           let v = V.mk n (Reg Direct) ty L._dummy [] in
           Conv.cvar_of_var tbl v in
@@ -237,7 +240,7 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      let is_move_op = aparams.is_move_op in
+      let is_move_op = aparams.ap_is_move_op in
       StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl is_move_op up
      in
 
@@ -369,7 +372,9 @@ let main () =
       let ci = Conv.cvar_of_var tbl i in
       ci.Var0.Var.vname in
 
-    let var_alloc_fd fd = Regalloc.split_live_ranges fd in
+    let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in
+    let renaming_fd fd = Regalloc.renaming fd in
+    let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd in
 
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
@@ -398,7 +403,9 @@ let main () =
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = expand_fd;
-      Compiler.var_alloc_fd = apply "var alloc" var_alloc_fd;
+      Compiler.split_live_ranges_fd = apply "split live ranges" split_live_ranges_fd;
+      Compiler.renaming_fd = apply "alloc inline assgn" renaming_fd;
+      Compiler.remove_phi_nodes_fd = apply "remove phi nodes" remove_phi_nodes_fd;
       Compiler.stack_register_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
@@ -416,8 +423,8 @@ let main () =
       Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
-      Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea;
-                                         use_set0 = !Glob_options.set0; };
+      Compiler.lowering_opt = X86_lowering.{ use_lea = !Glob_options.lea;
+                                             use_set0 = !Glob_options.set0; };
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
       Compiler.fresh_counter = fresh_counter;

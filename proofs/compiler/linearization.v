@@ -71,7 +71,7 @@ End E.
 (* --------------------------------------------------------------------------- *)
 Section PROG.
 Context {pd: PointerData}.
-Context `{asmop:asmOp}.
+Context `{asmop: asmOp}.
 Context (p:sprog) (extra_free_registers: instr_info -> option var).
 
 (** Total size of a stack frame: local variables, extra and padding. *)
@@ -154,33 +154,6 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
         (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
     else ok tt.
 
-  Definition check_fd (fn: funname) (fd:sfundef) :=
-    let e := fd.(f_extra) in
-    let stack_align := e.(sf_align) in
-    Let _ := check_c (check_i fn stack_align) fd.(f_body) in
-    Let _ := check_to_save e in
-    Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e & stack_frame_allocation_size e <? wbase Uptr]%Z
-                    (E.error "bad stack size") in
-    Let _ := assert match sf_return_address e with
-                    | RAnone => true
-                    | RAreg ra => vtype ra == sword Uptr
-                    | RAstack ofs => check_stack_ofs e ofs Uptr
-                    end
-                    (E.error "bad return-address") in
-    Let _ := assert ((sf_return_address e != RAnone)
-                     || match sf_save_stack e with
-                        | SavedStackNone => [&& stack_align == U8, sf_stk_sz e == 0 & sf_stk_extra_sz e == 0]
-                        | SavedStackReg r => (vtype r == sword Uptr) && (sf_to_save e == [::])
-                        | SavedStackStk ofs => check_stack_ofs e ofs Uptr
-                        end)
-                    (E.error "bad save-stack") in
-    ok tt.
-
-  Definition check_prog :=
-    Let _ := map_cfprog_name check_fd (p_funcs p) in
-    ok tt.
-
-
 (* --------------------------------------------------------------------------- *)
 (* Translation                                                                 *)
 
@@ -216,71 +189,95 @@ Definition align ii a (p:label * lcmd) : label * lcmd :=
 
 Section FUN.
 
-(* -------------------------------------------------------------------------- *)
-(* The following are architecture-specific. *)
+Record linearization_params :=
+  {
+    (* Scratch register to compute addresses. *)
+    lip_tmp : Ident.ident;
 
-Record linearization_params := {
-  (* Scratch register to compute addresses. *)
-  lp_tmp : Ident.ident;
+    (* Return a linear instruction that allocates a stack frame.
+       The linear instruction `lip_allocate_stack_frame rspi sz` increases the
+       stack pointer sz bytes.
+       In symbols, it corresponds to:
+               R[rsp] := R[rsp] + sz
+     *)
+    lip_allocate_stack_frame :
+      var_i    (* Variable with stack pointer register. *)
+      -> Z     (* Amount of space to allocate. *)
+      -> lvals * sopn * pexprs;
 
-  (* Return a linear instruction that allocates a stack frame.
-   * The linear instruction `lp_allocate_stack_frame rspi sz` increases the
-   * stack pointer sz bytes.
-   * In symbols, it corresponds to:
-   *         R[rsp] := R[rsp] + sz
-   *)
-  lp_allocate_stack_frame
-    : var_i      (* Variable with stack pointer register. *)
-    -> Z         (* Amount of space to allocate. *)
-    -> lvals * sopn * pexprs;
+    (* Return a linear instruction that frees a stack frame.
+       The linear instruction `lip_free_stack_frame rspi sz` decreases the
+       stack pointer sz bytes.
+       In symbols, it corresponds to:
+               R[rsp] := R[rsp] - sz
+     *)
+    lip_free_stack_frame :
+      var_i    (* Variable with stack pointer register. *)
+      -> Z     (* Amount of space to free. *)
+      -> lvals * sopn * pexprs;
 
-  (* Return a linear instruction that frees a stack frame.
-   * The linear instruction `lp_free_stack_frame rspi sz` decreases the
-   * stack pointer sz bytes.
-   * In symbols, it corresponds to:
-   *         R[rsp] := R[rsp] - sz
-   *)
-  lp_free_stack_frame
-    : var_i      (* Variable with stack pointer register. *)
-    -> Z         (* Amount of space to free. *)
-    -> lvals * sopn * pexprs;
+    (* Return a linear instruction that ensures the stack pointer is aligned.
+       The linear instruction `lip_ensure_rsp_alignment rspi ws` ensures that
+       the k least significant bits of the stack pointer are 0, where k is the
+       size of ws in bytes.
+       In symbols, it corresponds to:
+               R[rsp] := R[rsp] & - wsize_size ws
+       where rsp is the stack pointer register. *)
+    lip_ensure_rsp_alignment :
+      var_i       (* Variable with stack pointer register. *)
+      -> wsize    (* Size of the unit to align to. *)
+      -> lvals * sopn * pexprs;
 
-  (* Return a linear instruction that ensures the stack pointer is aligned.
-   * The linear instruction `lp_ensure_rsp_alignment rspi ws` ensures that
-   * the k least significant bits of the stack pointer are 0, where k is the
-   * size of ws in bytes.
-   * In symbols, it corresponds to:
-   *         R[rsp] := R[rsp] & - wsize_size ws
-   * where rsp is the stack pointer register.
-   *)
-  lp_ensure_rsp_alignment
-    : var_i      (* Variable with stack pointer register. *)
-    -> wsize     (* Size of the unit to align to. *)
-    -> lvals * sopn * pexprs;
+    (* Return a linear instruction that corresponds to assignment.
+       In symbols, the linear instruction `lip_lassign x ws e` corresponds to:
+               x := (ws)e
+     *)
+    lip_lassign :
+      lval        (* Value to overwrite. *)
+      -> wsize    (* Size of the value to assign. *)
+      -> pexpr    (* Value to assign. *)
+      -> lvals * sopn * pexprs;
+  }.
 
-  (* Return a linear instruction that corresponds to assignment.
-   * In symbols, the linear instruction `lp_lassign x ws e` corresponds to
-   *         x := (ws)e
-   *)
-  lp_lassign
-    : lval       (* Value to overwrite. *)
-    -> wsize     (* Size of the value to assign. *)
-    -> pexpr     (* Value to assign. *)
-    -> lvals * sopn * pexprs;
-}.
+Context
+  (liparams : linearization_params)
+  (fn : funname)
+  (fn_align : wsize).
 
-(* -------------------------------------------------------------------------- *)
-
-Context (lp: linearization_params) (fn: funname) (fn_align: wsize).
-
-Let rsp : var := Var (sword Uptr) p.(p_extra).(sp_rsp).
+Let rsp : var := Var (sword Uptr) (sp_rsp (p_extra p)).
 Let rspi : var_i := VarI rsp xH.
 Let rspg : gvar := Gvar rspi Slocal.
-Let var_tmp : var := Var (sword Uptr) lp.(lp_tmp).
+Let var_tmp : var := Var (sword Uptr) (lip_tmp liparams).
+
+Definition check_fd (fn: funname) (fd:sfundef) :=
+  let e := fd.(f_extra) in
+  let stack_align := e.(sf_align) in
+  Let _ := check_c (check_i fn stack_align) fd.(f_body) in
+  Let _ := check_to_save e in
+  Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e & stack_frame_allocation_size e <? wbase Uptr]%Z
+                  (E.error "bad stack size") in
+  Let _ := assert match sf_return_address e with
+                  | RAnone => true
+                  | RAreg ra => vtype ra == sword Uptr
+                  | RAstack ofs => check_stack_ofs e ofs Uptr
+                  end
+                  (E.error "bad return-address") in
+  Let _ := assert ((sf_return_address e != RAnone)
+                   || match sf_save_stack e with
+                      | SavedStackNone => [&& sf_to_save e == [::], stack_align == U8, sf_stk_sz e == 0 & sf_stk_extra_sz e == 0]
+                      | SavedStackReg r => [&& vtype r == sword Uptr & sf_to_save e == [::] ]
+                      | SavedStackStk ofs => [&& check_stack_ofs e ofs Uptr & ~~ Sv.mem var_tmp (sv_of_list fst (sf_to_save e)) ]
+                      end)
+                  (E.error "bad save-stack") in
+  ok tt.
+
+Definition check_prog :=
+  Let _ := map_cfprog_name check_fd (p_funcs p) in
+  ok tt.
 
 (* We use projections instead of destructuring let to avoid blocking reductions. *)
 Definition lassign ii x ws e : linstr :=
-  let args := lp.(lp_lassign) x ws e in
+  let args := (lip_lassign liparams) x ws e in
   MkLI ii (Lopn args.1.1 args.1.2 args.2).
 
 (* Return a linear instruction that corresponds to copying a register.
@@ -325,12 +322,12 @@ Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
   if sz == 0%Z
   then [::]
   else let args := if free
-                   then lp.(lp_allocate_stack_frame) rspi sz
-                   else lp.(lp_free_stack_frame) rspi sz
+                   then (lip_allocate_stack_frame liparams) rspi sz
+                   else (lip_free_stack_frame liparams) rspi sz
        in [:: MkLI ii (Lopn args.1.1 args.1.2 args.2) ].
 
 Definition ensure_rsp_alignment ii (al: wsize) : linstr :=
-  let args := lp.(lp_ensure_rsp_alignment) rspi al in
+  let args := (lip_ensure_rsp_alignment liparams) rspi al in
   MkLI ii (Lopn args.1.1 args.1.2 args.2).
 
 (* Return a linear command that pushes variables to the stack.
@@ -551,6 +548,7 @@ Definition linear_fd (fd: sfundef) :=
   ; lfd_tyin := f_tyin fd
   ; lfd_arg := f_params fd
   ; lfd_tyout := f_tyout fd
+  ; lfd_total_stack := sf_stk_max e
   ; lfd_res := res
   ; lfd_export := is_export
   ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
@@ -559,11 +557,11 @@ Definition linear_fd (fd: sfundef) :=
 
 End FUN.
 
-Definition linear_prog (lparams: linearization_params) : cexec lprog :=
-  Let _ := check_prog in
+Definition linear_prog (liparams : linearization_params) : cexec lprog :=
+  Let _ := check_prog liparams in
   Let _ := assert (size p.(p_globs) == 0)
              (E.internal_error "invalid p_globs") in
-  let funcs := map (fun '(f,fd) => (f, linear_fd lparams f fd)) p.(p_funcs) in
+  let funcs := map (fun '(f,fd) => (f, linear_fd liparams f fd)) p.(p_funcs) in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_rsp   := p.(p_extra).(sp_rsp);
         lp_globs := p.(p_extra).(sp_globs);

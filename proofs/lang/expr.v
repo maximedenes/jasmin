@@ -457,10 +457,13 @@ Definition wrange d (n1 n2 : Z) :=
 Definition instr_info := positive.
 
 Variant assgn_tag :=
-  | AT_none       (* assignment introduced by the develloper that can be removed *)
-  | AT_keep       (* assignment that should be keep *)
-  | AT_rename     (* equality constraint introduced by inline *)
-  | AT_inline     (* assignment to be removed later : introduce by unrolling or inlining *)
+  | AT_none       (* assignment introduced by the developer that can be removed *)
+  | AT_keep       (* assignment that should be kept by the compiler *)
+  | AT_rename     (* equality constraint introduced by inline, used in reg-alloc
+                     and compiled to no-op *)
+  | AT_inline     (* assignment to be propagated and removed later : introduced
+                     by unrolling, inlining or lowering *)
+  | AT_phinode    (* renaming during SSA transformation *)
   .
 
 Scheme Equality for assgn_tag.
@@ -835,6 +838,11 @@ Definition is_bool (e:pexpr) :=
   | Pbool b => Some b
   | _ => None
   end.
+
+Definition is_app1 (e : pexpr) :=
+  if e is Papp1 op e
+  then Some (op, e)
+  else None.
 
 Definition cast_w ws := Papp1 (Oword_of_int ws).
 

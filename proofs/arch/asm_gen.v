@@ -1,5 +1,14 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import oseq compiler_util expr low_memory lea arch_decl arch_extra.
+Require Import
+  oseq
+  compiler_util
+  expr
+  linear
+  low_memory
+  lea.
+Require Import
+  arch_decl
+  arch_extra.
 Import Utf8 String.
 Import all_ssreflect.
 Import compiler_util.
@@ -37,12 +46,6 @@ Definition invalid_name category ii (v:var_i) :=
 Definition invalid_ty category ii (v:var_i) :=
   verror true ("Invalid " ++ category ++ " type") ii v.
 
-Definition invalid_register ii (v:var_i) :=
-   verror true "Invalid register name" ii v.
-
-Definition invalid_register_ty ii (v:var_i) :=
-  verror true "Invalid register type" ii v.
-
 Definition berror ii e msg := 
   gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "not able to compile the condition"; pp_e e];
                                              pp_s msg]).
@@ -52,6 +55,9 @@ Definition werror ii e msg :=
                                              pp_s msg]).
 
 End E.
+
+Definition fail ii (msg: string) :=
+  asm_gen.E.error ii (pp_box [:: pp_s "store-label:"; pp_s msg]).
 
 Section TOSTRING.
 
@@ -147,7 +153,16 @@ Qed.
 (* Compilation of pexprs *)
 (* -------------------------------------------------------------------- *)
 
-Context (assemble_cond : instr_info -> pexpr -> cexec cond_t).
+Record asm_gen_params :=
+  {
+    (* Assemble an expression into an architecture-specific condition. *)
+    agp_assemble_cond : instr_info -> pexpr -> cexec cond_t;
+  }.
+
+Context
+  (agparams : asm_gen_params).
+
+Notation assemble_cond := (agp_assemble_cond agparams).
 
 (* -------------------------------------------------------------------- *)
 Definition scale_of_z' ii (z:pointer) : cexec nat :=
@@ -475,4 +490,142 @@ Definition assemble_sopn rip ii (op:sopn) (outx : lvals) (inx : pexprs) :=
     assemble_asm_op rip ii op outx inx
   end.
 
+(* -------------------------------------------------------------------- *)
+
+Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
+  let '{| li_ii := ii; li_i := ir; |} := i in
+  match ir with
+  | Lopn ds op es =>
+      Let  ao := assemble_sopn rip ii op ds es in
+      ok (AsmOp ao.1 ao.2)
+
+  | Lalign =>
+      ok ALIGN
+
+  | Llabel lbl =>
+      ok (LABEL lbl)
+
+  | Lgoto lbl =>
+      ok (JMP lbl)
+
+  | Ligoto e =>
+      Let _ := assert (is_app1 e == None) (E.werror ii e "Ligoto/JMPI") in
+      Let arg := assemble_word AK_mem rip ii Uptr e in
+      ok (JMPI arg)
+
+  | LstoreLabel x lbl =>
+      Let dst := match x with
+                 | Lvar x => if of_var x is Some r
+                             then ok r
+                             else Error (fail ii "bad var")
+                 | Lmem _ _ _ => Error (fail ii "set mem")
+                 | Laset _ _ _ _ => Error (fail ii "set array")
+                 | Lasub _ _ _ _ _ => Error (fail ii "sub array")
+                 | Lnone _ _ => Error (fail ii "none")
+                 end%string in
+      ok (STORELABEL dst lbl)
+  | Lcond e l =>
+      Let cond := assemble_cond ii e in
+      ok (Jcc l cond)
+  end.
+
+(* -------------------------------------------------------------------- *)
+(*TODO: use in whatever characterization using an lprog there is.*)
+Definition assemble_c rip (lc: lcmd) : cexec (seq asm_i) :=
+  mapM (assemble_i rip) lc.
+
+(* -------------------------------------------------------------------- *)
+Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
+  let: {| vtype := ty; vname := n; |} := x in
+  match ty with
+  | sbool => if of_string n is Some r
+             then ok (ABReg r)
+             else Error (E.gen_error true None None (pp_s "6qJYxxWakSyc%"))
+  | sint => Error (E.gen_error true None None (pp_s "vBuu8Nv7AFRC"))
+  | sarr _ => Error (E.gen_error true None None (pp_s "4WLdO8K4viE3"))
+  | sword sz =>
+      if sz == reg_size
+      then if of_string n is Some r
+           then ok (ARReg r)
+           else Error (E.gen_error true None None (pp_s "R+zT50uyf3fF"))
+      else if sz == xreg_size
+           then if of_string n is Some r
+                then ok (AXReg r)
+                else Error (E.gen_error true None None (pp_s "Dh9l31MJeafV"))
+           else Error (E.gen_error true None None (pp_s "+y2SvS1t6pzB"))
+  end.
+
+Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
+  match x with
+  | ARReg r => to_var r
+  | AXReg r => to_var r
+  | ABReg r => to_var r
+  end.
+
+Lemma asm_typed_reg_of_varI x r :
+  asm_typed_reg_of_var x = ok r
+  -> x = var_of_asm_typed_reg r :> var.
+Proof.
+  rewrite /asm_typed_reg_of_var.
+  case: x => xtype xname /=.
+  case: xtype => [ | // | // | sz ]; first last.
+  case: (sz == reg_size) /eqP => [-> | _]; first last.
+  case: (sz == xreg_size) /eqP => [-> | _]; last done.
+  all: case e: of_string => [ y | // ] /ok_inj <-.
+  all: by rewrite -(of_stringI e).
+Qed.
+
+(* -------------------------------------------------------------------- *)
+
+Definition is_arreg x :=
+  if asm_typed_reg_of_var x is Ok (ARReg _)
+  then true
+  else false.
+
+Definition typed_reg_of_vari xi :=
+  let '{| v_var := x; |} := xi in asm_typed_reg_of_var x.
+
+Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
+  Let fd' := assemble_c rip (lfd_body fd) in
+  Let _ := assert
+    (rsp \notin map v_var fd.(lfd_arg))
+    (E.gen_error true None None (pp_s "Stack pointer is an argument")) in
+  Let _ := assert
+    (all is_arreg fd.(lfd_callee_saved))
+    (E.gen_error true None None (pp_s "Saved variable is not a register")) in
+  Let arg := mapM typed_reg_of_vari fd.(lfd_arg) in
+  Let res := mapM typed_reg_of_vari fd.(lfd_res) in
+  ok {| asm_fd_align := lfd_align fd
+      ; asm_fd_arg := arg
+      ; asm_fd_body := fd'
+      ; asm_fd_res := res
+      ; asm_fd_export := lfd_export fd
+      ; asm_fd_total_stack := lfd_total_stack fd
+     |}.
+
+(* -------------------------------------------------------------------- *)
+
+(* [map_cfprog_gen] specialized to functions of type [lfundef] *)
+Notation map_cfprog_linear := (map_cfprog_gen lfd_info).
+
+Definition assemble_prog (p : lprog) : cexec asm_prog :=
+  let rip := mk_ptr (lp_rip p) in
+  let rsp := mk_ptr (lp_rsp p) in
+  Let _ :=
+    assert
+      (to_reg rip == None :> option_eqType ceqT_eqType)
+      (E.gen_error true None None (pp_s "Invalid RIP"))
+  in
+  Let _ :=
+    assert
+      (of_string (lp_rsp p) == Some ad_rsp :> option_eqType ceqT_eqType)
+      (E.gen_error true None None (pp_s "Invalid RSP"))
+  in
+  Let fds :=
+    map_cfprog_linear (assemble_fd rip rsp) (lp_funcs p)
+  in
+  ok {| asm_globs := lp_globs p; asm_funcs := fds; |}.
+
 End ASM_EXTRA.
+
+Notation map_cfprog_linear := (map_cfprog_gen lfd_info).

@@ -19,6 +19,7 @@ let color = ref Auto
 let ct_list = ref None
 let infer   = ref false 
 
+
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
@@ -26,6 +27,11 @@ let print_stack_alloc = ref false
 let introduce_array_copy = ref true
 let print_dependencies = ref false 
 let lazy_regalloc = ref false
+
+type x86_assembly_style = [`ATT | `Intel ]
+let assembly_style : x86_assembly_style ref = ref `ATT
+
+let set_syntax style () = assembly_style := style
 
 let set_printing p () =
   print_list := p :: !print_list
@@ -65,6 +71,17 @@ let set_ct_on s =
           | None -> [s]
           | Some l -> s::l)
 
+let parse_jasmin_path s =
+  s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
+
+let idirs =
+  ref (try "JASMINPATH" |> Sys.getenv |> parse_jasmin_path with _ -> [])
+
+let set_idirs s = 
+  match String.split_on_char ':' s with
+  | [s1; s2] -> idirs := (s1,s2)::!idirs
+  | _ -> hierror ~loc:Lnone ~kind:"parsing arguments" "bad format for -I : ident:path expected"
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
@@ -74,8 +91,9 @@ let print_strings = function
   | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
   | Compiler.Unrolling                   -> "unroll"   , "unrolling"
   | Compiler.Splitting                   -> "splitting", "liverange splitting"
-  | Compiler.AllocInlineAssgn            -> "valloc"   , "inlined variables allocation"
-  | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd"  , "dead code after inlined variables allocation"
+  | Compiler.Renaming                    -> "renaming" , "variable renaming to remove copies"
+  | Compiler.RemovePhiNodes              -> "rmphi"    , "remove phi nodes introduced by splitting"
+  | Compiler.DeadCode_Renaming           -> "renamingd", "dead code after variable renaming to remove copies"
   | Compiler.RemoveArrInit               -> "rmarrinit", "remove array initialisation"
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.RemoveGlobal                -> "rmglobals", "remove globals variables"
@@ -101,6 +119,7 @@ let stop_after_option p =
 let options = [
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-debug"   , Arg.Set debug         , ": print debug information";
+    "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";
     "-latex"     , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea";
@@ -130,11 +149,13 @@ let options = [
     "-noinsertarraycopy", Arg.Clear introduce_array_copy, ": do not automatically insert array copy";
     "-nowarning", Arg.Unit (nowarning), ": do no print warning";
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), ": print messages with color";
-    "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
+    "-help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-print-stack-alloc", Arg.Set print_stack_alloc, ": print the results of the stack allocation OCaml oracle";
-    "--lazy-regalloc", Arg.Set lazy_regalloc, "\tAllocate variables to registers in program order";
+    "-lazy-regalloc", Arg.Set lazy_regalloc, "\tAllocate variables to registers in program order";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
-    "--print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";
+    "-print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";
+    "-intel", Arg.Unit (set_syntax `Intel), "use intel syntax (default is AT&T)"; 
+    "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
