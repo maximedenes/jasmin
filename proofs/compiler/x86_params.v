@@ -274,8 +274,9 @@ Definition x86_params : architecture_params fresh_vars lowering_options :=
 
 Section STACK_ALLOC.
 
-  Variable (P' : sprog).
-  Hypothesis P'_globs : P'.(p_globs) = [::].
+  Context
+    (P' : sprog)
+    (P'_globs : P'.(p_globs) = [::]).
 
   Lemma lea_ptrP s1 e i x ofs w s2 :
     (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
@@ -526,10 +527,10 @@ Lemma eval_assemble_cond ii m rf e c v:
   eqflags m rf
   -> agp_assemble_cond x86_agparams ii e = ok c
   -> sem_pexpr [::] m e = ok v
-  -> let
-       get x := if rf x is Def b
-                then ok b
-                else undef_error
+  -> let get x :=
+       if rf x is Def b
+       then ok b
+       else undef_error
      in
      exists2 v', value_of_bool (eval_cond get c) = ok v' & value_uincl v v'.
 Proof.
@@ -750,7 +751,7 @@ Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
 
 
 (* ------------------------------------------------------------------------ *)
-(* Common hypotheses. *)
+(* Shared hypotheses. *)
 
 Definition x86_is_move_opP op vx v :
   ap_is_move_op x86_params op

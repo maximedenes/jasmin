@@ -39,6 +39,7 @@ compiler/arm_decl.v
 compiler/arm_extra.v
 compiler/arm_instr_decl.v
 compiler/arm_lowering.v
+compiler/arm_lowering_proof.v
 compiler/arm_params.v
 compiler/arm_sem.v
 compiler/arch_params.v
