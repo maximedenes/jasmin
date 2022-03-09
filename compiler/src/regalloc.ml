@@ -651,7 +651,7 @@ module type Regalloc = sig
     * (L.i_loc -> var option)
 end
 
-module Regalloc (Arch : Test_arch.Arch) = struct
+module Regalloc (Arch : Arch_full.Arch) = struct
 
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: _ sopn) (es: 'ty gexprs)
@@ -867,7 +867,7 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   a
 
 let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
-  Ssa.split_live_ranges Arch.aparams.is_move_op true f
+  Ssa.split_live_ranges Arch.aparams.ap_is_move_op true f
 
 let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
@@ -940,8 +940,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   let killed fn = Hf.find killed_map fn in
   let preprocess f =
     Hf.add annot_table f.f_name f.f_annot;
-    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges Arch.aparams.is_move_op false in
-    Hf.add liveness_table f.f_name (Liveness.live_fd Arch.aparams.is_move_op true f);
+    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges Arch.aparams.ap_is_move_op false in
+    Hf.add liveness_table f.f_name (Liveness.live_fd Arch.aparams.ap_is_move_op true f);
     let written =
       let written, cg = written_vars_fc f in
       let written =
@@ -996,7 +996,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   in
   let excluded = Sv.of_list [Prog.rip; Arch.rsp_var] in
   let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers funcs in
-  let eqc, tr, fr = collect_equality_constraints_in_prog (Arch_extra.asm_opI Arch.asm_e) Arch.aparams.is_move_op "Regalloc" asm_equality_constraints vars nv funcs in
+  let eqc, tr, fr = collect_equality_constraints_in_prog (Arch_extra.asm_opI Arch.asm_e) Arch.aparams.ap_is_move_op "Regalloc" asm_equality_constraints vars nv funcs in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
   let conflicts =

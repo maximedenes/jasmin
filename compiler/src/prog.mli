@@ -256,7 +256,6 @@ module Mv : Map.S  with type key = var
 module Hv : Hash.S with type key = var
 
 val rip : var
-val rsp : var 
 
 (* -------------------------------------------------------------------- *)
 val kind_i : 'len gvar_i -> v_kind

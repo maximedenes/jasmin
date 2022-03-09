@@ -1,5 +1,6 @@
 src/Alias
 src/Arch
+src/Arch_full
 src/Array_expand
 src/Bigint
 src/BigintCore
@@ -51,3 +52,4 @@ src/safety/domains/safetySymEq
 src/Typing
 src/Utils
 src/Varalloc
+src/X86_arch_full

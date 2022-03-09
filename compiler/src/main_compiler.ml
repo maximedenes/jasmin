@@ -91,11 +91,12 @@ let main () =
     ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
     }) in
   let lowering_opt =
-    Lowering.{ use_lea = !Glob_options.lea;
-               use_set0 = !Glob_options.set0; }; in
-  let (module Ocaml_params : Test_arch.Core_arch) = if true then (module X86_test_arch.X86 (struct let lowering_vars = lowering_vars let lowering_opt = lowering_opt end)) else assert false in
-  let module Arch = Test_arch.Arch_from_Core_arch (Ocaml_params) in
+    X86_lowering.{ use_lea = !Glob_options.lea;
+                   use_set0 = !Glob_options.set0; } in
+  let (module Ocaml_params : Arch_full.Core_arch) = if true then (module X86_arch_full.X86 (struct let lowering_vars = lowering_vars let lowering_opt = lowering_opt end)) else assert false in
+  let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
   let module Regalloc = Regalloc.Regalloc (Arch) in
+  let module StackAlloc = StackAlloc.StackAlloc (Arch) in
 
   try
     parse();
@@ -238,17 +239,8 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      let dead_code_fd = Dead_code.dead_code_fd (Arch_extra.asm_opI Arch.asm_e) Arch.aparams.ap_is_move_op in
-      let stackalloc_prog = Stack_alloc.alloc_prog U64 (Arch_extra.asm_opI Arch.asm_e) false Arch.aparams.mov_ofs in
-      let regalloc_prog translate_var has_stack dfuncs =
-        let (fds, _) = Regalloc.alloc_prog translate_var has_stack dfuncs in
-        fds
-      in
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug
-        Arch.pp_opn Arch.aparams.is_move_op
-        dead_code_fd stackalloc_prog regalloc_prog
-        tbl up
-     in
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl up
+    in
 
     let global_regalloc fds =
       if !debug then Format.eprintf "START regalloc@.";
@@ -384,7 +376,7 @@ let main () =
 
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
-      let tokeep = RemoveUnusedResults.analyse Arch.aparams.is_move_op fds in 
+      let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
       let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
       tokeep in
 
@@ -412,7 +404,7 @@ let main () =
       Compiler.split_live_ranges_fd = apply "split live ranges" split_live_ranges_fd;
       Compiler.renaming_fd = apply "alloc inline assgn" renaming_fd;
       Compiler.remove_phi_nodes_fd = apply "remove phi nodes" remove_phi_nodes_fd;
-      Compiler.stack_register_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
+      Compiler.stack_register_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rsp_var);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;

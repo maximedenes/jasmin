@@ -301,7 +301,6 @@ module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
 let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
-let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy []
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 
