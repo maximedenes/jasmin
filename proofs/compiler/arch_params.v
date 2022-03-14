@@ -49,14 +49,13 @@ Record lowering_params
   `{asmop : asmOp} (fresh_vars lowering_options : Type) :=
   {
     (* Lower a program to architecture-specific instructions. *)
-    lop_lower_prog :
-      lowering_options     (* Lowering options depend on the architecture. *)
+    lop_lower_i :
+      lowering_options   (* Lowering options depend on the architecture. *)
       -> (instr_info -> warning_msg -> instr_info)
       -> fresh_vars
-      -> forall (eft : eqType) (pT : progT eft),
-           (var_i -> bool)    (* Whether the variable is in memory. *)
-           -> prog            (* Source program. *)
-           -> prog;
+      -> (var_i -> bool) (* Whether the variable is in memory. *)
+      -> instr           (* Source program. *)
+      -> cmd;
 
     (* Whether all fresh vars are different from each other and
      from those in a list of function declarations. *)

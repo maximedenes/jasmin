@@ -601,9 +601,6 @@ Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r :=
   | _            => [:: Copn xs tg op es]
   end.
 
-Definition lower_cmd (lower_i: instr -> cmd) (c:cmd) : cmd :=
-  List.fold_right (fun i c' => lower_i i ++ c') [::] c.
-
 Fixpoint lower_i (i:instr) : cmd :=
   let (ii, ir) := i in
   match ir with
@@ -611,25 +608,13 @@ Fixpoint lower_i (i:instr) : cmd :=
   | Copn l t o e => map (MkI ii) (lower_copn l t o e)
   | Cif e c1 c2  =>
      let '(pre, e) := lower_condition xH e in
-       map (MkI ii) (rcons pre (Cif e (lower_cmd lower_i c1) (lower_cmd lower_i c2)))
+       map (MkI ii) (rcons pre (Cif e (conc_map lower_i c1) (conc_map lower_i c2)))
   | Cfor v (d, lo, hi) c =>
-     [:: MkI ii (Cfor v (d, lo, hi) (lower_cmd lower_i c))]
+     [:: MkI ii (Cfor v (d, lo, hi) (conc_map lower_i c))]
   | Cwhile a c e c' =>
      let '(pre, e) := lower_condition xH e in
-       map (MkI ii) [:: Cwhile a ((lower_cmd lower_i c) ++ map (MkI xH) pre) e (lower_cmd lower_i c')]
+       map (MkI ii) [:: Cwhile a ((conc_map lower_i c) ++ map (MkI xH) pre) e (conc_map lower_i c')]
   | _ =>   map (MkI ii) [:: ir]
   end.
-
-Definition lower_fd (fd: fundef) : fundef :=
-  {| f_info := f_info fd;
-     f_tyin := f_tyin fd;
-     f_params := f_params fd;
-     f_body := lower_cmd lower_i (f_body fd);
-     f_tyout := f_tyout fd;
-     f_res := f_res fd;
-     f_extra := f_extra fd;
-  |}.
-
-Definition lower_prog (p: prog) := map_prog lower_fd p.
 
 End LOWERING.
