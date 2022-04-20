@@ -1,0 +1,63 @@
+name: Push code to repository
+
+on:
+  workflow_run:
+    workflows: [Jasmin CI]
+    branches: main
+    types:
+      - completed
+
+jobs:
+  push-compiler-code:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    container: nixos/nix:2.3.12
+    steps:
+    - name: 'Download artifact'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             run_id: context.payload.workflow_run.id,
+          });
+          let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+            return artifact.name == "tarball"
+          })[0];
+          let download = await github.rest.actions.downloadArtifact({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             artifact_id: matchArtifact.id,
+             archive_format: 'zip',
+          });
+          let fs = require('fs');
+          fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/compiler/tarball.zip`, Buffer.from(download.data));
+
+    - name: 'Unzip artifact'
+      run: unzip compiler/tarball.zip
+
+    - name: Push changes to compiler repository
+      env:
+        COMPILER_DEPLOY_KEY: ${{ secrets.COMPILER_DEPLOY_KEY }}
+        GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/github/home/.ssh/known_hosts"
+      run: |
+        nix-env -iA nixpkgs.git
+        nix-env -iA nixpkgs.openssh
+        eval $(ssh-agent -s)
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
+        chmod 600 ~/.ssh/known_hosts
+        git config --global user.name "Jasmin Contributors"
+        git config --global user.email "nobody@noreply.example.com"
+        echo "$COMPILER_DEPLOY_KEY" | tr -d '\r' | ssh-add - > /dev/null
+        git clone git@gitlab.com:maximedenes/jasmin-compiler.git _deploy
+        cd _deploy
+        git checkout $GITHUB_REF_NAME || git checkout --orphan $GITHUB_REF_NAME
+        rm -rf compiler
+        tar xzvf ../compiler/jasmin-compiler-*.tgz
+        mv jasmin-compiler-*/ compiler
+        git add compiler
+        git commit -m "Jasmin compiler on branch “$GITHUB_REF_NAME” at $GITHUB_SHA" || true
+        git push --set-upstream origin $GITHUB_REF_NAME
