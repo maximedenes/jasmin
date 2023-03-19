@@ -55,6 +55,7 @@ stdenv.mkDerivation {
     ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
+         ocaml-lsp ppx_yojson_conv ppx_sexp_conv ppx_deriving ppx_inline_test ppx_assert sexplib uri
          cmdliner
          (batteries.overrideAttrs (o: { doCheck = false; }))
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))

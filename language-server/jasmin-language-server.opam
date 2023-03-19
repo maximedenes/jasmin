@@ -1,0 +1,24 @@
+opam-version: "2.0"
+name: "jasmin-language-server"
+maintainer: "Maxime Dénès <maxime.denes@inria.fr>"
+authors: [ "Maxime Dénès" ]
+license: "MIT"
+
+build: [
+  [ "dune" "build" "-p" "jasmin-language-server" "--display=short"] 
+]
+depends: [
+  "yojson"
+  "ocamlfind"
+  "ppx_inline_test"
+  "ppx_assert"
+  "ppx_sexp_conv"
+  "ppx_yojson_conv"
+  "ppx_deriving"
+  "sexplib"
+  "ppx_yojson_conv"
+]
+synopsis: "Jasmin language server"
+description: """
+LSP based language server for Jasmin
+"""

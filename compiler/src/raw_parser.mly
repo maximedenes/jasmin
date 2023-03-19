@@ -1,10 +1,13 @@
 %{
+  module L = Location
+  module S = Syntax
+
   open Syntax
   open Annotations
 
   let setsign c s = 
     match c with
-    | None -> Some (Location.mk_loc (Location.loc s) (CSS(None, Location.unloc s)))
+    | None -> Some (L.mk_loc (L.loc s) (CSS(None, L.unloc s)))
     | _    -> c
 
 %}
@@ -479,11 +482,11 @@ prequire:
 
 (* -------------------------------------------------------------------- *)
 top:
-| x=pfundef  { Syntax.PFundef x }
-| x=pparam   { Syntax.PParam  x }
-| x=pglobal  { Syntax.PGlobal x }
-| x=pexec    { Syntax.Pexec   x }
-| x=prequire { Syntax.Prequire x}
+| x=pfundef  { S.PFundef x }
+| x=pparam   { S.PParam  x }
+| x=pglobal  { S.PGlobal x }
+| x=pexec    { S.Pexec   x }
+| x=prequire { S.Prequire x}
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

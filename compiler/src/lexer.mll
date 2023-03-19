@@ -5,6 +5,8 @@
   module L = Location
   module S = Syntax
 
+  type keywords = (string, Parser.token) Hashtbl.t
+
   let unterminated_comment loc =
     raise (S.ParseError (loc, Some "unterminated comment"))
 

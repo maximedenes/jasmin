@@ -1,0 +1,30 @@
+;(menhir
+; (flags "--table" "--explain" "--inspection" "--external-tokens" "Jasmin.Parser")
+; (modules raw_parser))
+
+;(rule
+;  (action (with-stdout-to parserMessages.ml
+;    (run menhir
+;      %{dep:raw_parser.mly}
+;      --compile-errors %{dep:parserMessages.messages}
+;    )
+;  ))
+;)
+
+(executable
+ (name jasminlsp)
+ (public_name jasminlsp)
+ (flags -rectypes -linkall)
+ (package jasmin-language-server)
+ (modules jasminlsp)
+ (libraries uri jasmin.jasmin sel yojson lsp parsing language controller)
+)
+
+(library
+  (name controller)
+  (modules :standard \ jasminlsp)
+  (flags -rectypes -linkall)
+  (libraries uri jasmin.jasmin sel yojson lsp parsing language)
+ (preprocess
+   (pps ppx_yojson_conv))
+)

@@ -32,18 +32,18 @@ let state checkpoint : int =
 let fail buffer (checkpoint : _ I.checkpoint) =
   let (p1,p2) = E.last buffer in
   let location = Location.make p1 p2 in
-  let message = "Parsing error" in
+  let message = ParserMessages.message (state checkpoint) in
   raise (Syntax.ParseError (location, Some message))
 
 let parse_program ?(name = "") (inc : IO.input) =
+<<<<<<< HEAD
+  let lexbuf = lexbuf_from_channel name (IO.to_input_channel inc) in
+  parserfun_entry (fun () -> lexer lexbuf)
+=======
   let ch = IO.to_input_channel inc in
   let lexbuf = L.init name (Lexing.from_channel ch) in
   let supplier = I.lexer_lexbuf_to_supplier Lexer.main lexbuf in
   let buffer, supplier = E.wrap_supplier supplier in
   let checkpoint = P.Incremental.module_ lexbuf.lex_curr_p in
   I.loop_handle succeed (fail buffer) supplier checkpoint
-
-let parse_program_from_tokens startp supplier =
-  let buffer, supplier = E.wrap_supplier supplier in
-  let checkpoint = P.Incremental.module_ startp in
-  I.loop_handle succeed (fail buffer) supplier checkpoint
+>>>>>>> 462a6d09 (wip)

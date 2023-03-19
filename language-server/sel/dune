@@ -1,0 +1,6 @@
+(library
+ (name sel)
+ (preprocess (pps ppx_deriving.std))
+ (public_name jasmin-language-server.sel)
+ (libraries unix)
+)

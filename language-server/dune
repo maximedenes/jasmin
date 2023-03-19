@@ -1,0 +1,4 @@
+(alias
+   (name default)
+    (deps jasmin-language-server.install))
+(vendored_dirs jasmin)
