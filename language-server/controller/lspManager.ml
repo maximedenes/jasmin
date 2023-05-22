@@ -190,6 +190,12 @@ let textDocumentDidChange params =
   end;
   []
 
+let textDocumentDidClose params =
+  let Notification.Client.DidCloseTextDocumentParams.{ textDocument } = params in
+  let fname = Uri.path textDocument.uri in
+  workspace := Workspace.close_document !workspace ~fname;
+  []
+
 (*
 let textDocumentDidChange params =
   let open Yojson.Safe.Util in
@@ -246,6 +252,8 @@ let dispatch_notification =
     textDocumentDidOpen params
   | DidChangeTextDocument params ->
     textDocumentDidChange params
+  | DidCloseTextDocument params ->
+    textDocumentDidClose params
   | UnknownNotification -> []
 
 let dispatch = Request.Client.{ f = dispatch_request }

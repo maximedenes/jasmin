@@ -44,9 +44,18 @@ module Notification = struct
 
     end
 
+    module DidCloseTextDocumentParams = struct
+
+      type t = {
+        textDocument: VersionedTextDocumentIdentifier.t;
+      } [@@deriving yojson]
+
+    end
+
     type t =
     | DidOpenTextDocument of DidOpenTextDocumentParams.t
     | DidChangeTextDocument of DidChangeTextDocumentParams.t
+    | DidCloseTextDocument of DidCloseTextDocumentParams.t
     | UnknownNotification
 
     let t_of_jsonrpc JsonRpc.Notification.{ method_; params } =
@@ -55,6 +64,8 @@ module Notification = struct
         DidOpenTextDocument DidOpenTextDocumentParams.(t_of_yojson params)
       | "textDocument/didChange" ->
         DidChangeTextDocument DidChangeTextDocumentParams.(t_of_yojson params)
+      | "textDocument/didClose" ->
+        DidCloseTextDocument DidCloseTextDocumentParams.(t_of_yojson params)
       | _ ->
         UnknownNotification
 

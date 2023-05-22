@@ -50,12 +50,13 @@ let add_parsing_diagnostics workspace diagnostics =
 let analyze_file fname architecture workspace =
   Printf.eprintf "Analyzing file %s\n" fname;
   let get_ast ~fname = Option.bind (PathMap.find_opt fname workspace.open_documents) (fun st -> DocumentManager.get_ast st) in 
-  let diagnostics, references, global_env, prog = Typing.type_program get_ast ~fname architecture in
+  let Typing.{ diagnostics; references; global_env; program; revdeps } = Typing.type_program get_ast ~fname architecture in
   let diagnostics = add_parsing_diagnostics workspace diagnostics in
   let diagnostics = PathMap.union (fun _ v _ -> Some v) diagnostics workspace.diagnostics in
-  let root_doc = { global_env; prog; architecture = X86_64 } in
+  let root_doc = { global_env; prog = program; architecture = X86_64 } in
   let root_documents = PathMap.add fname root_doc workspace.root_documents in
-  { workspace with diagnostics; references; root_documents }
+  let revdeps = PathMap.union (fun _ v _ -> Some v) revdeps workspace.revdeps in
+  { workspace with diagnostics; references; root_documents; revdeps }
 
 let init ~root =
   let path = Uri.path root in
@@ -96,10 +97,13 @@ let open_document workspace ~fname ~text =
   let doc = DocumentManager.init ~fname ~text in
   let open_documents = PathMap.add fname doc workspace.open_documents in
   let workspace = { workspace with open_documents } in
-  (* FIXME if not root then typecheck root dependents *)
-  match PathMap.find_opt fname workspace.root_documents with
-  | Some root_doc -> analyze_file fname root_doc.architecture workspace
-  | None -> workspace
+  match PathMap.find_opt fname workspace.revdeps with
+  | None -> Printf.eprintf "Cannot find root document for %s\n" fname; workspace
+  | Some root_fname ->
+    Printf.eprintf "Opening %s, found root %s\n" fname root_fname;
+    match PathMap.find_opt root_fname workspace.root_documents with
+    | Some root_doc -> analyze_file root_fname root_doc.architecture workspace
+    | None -> Printf.eprintf "Cannot find root document %s\n" root_fname; workspace
 
 let get_document workspace ~fname =
   PathMap.find fname workspace.open_documents
