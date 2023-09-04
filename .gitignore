@@ -17,7 +17,6 @@ compiler/src/CIL/*.mli
 *.bak
 *.glob
 *.aux
-*.lock
 _build
 *.run.out
 *.run.err
